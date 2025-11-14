@@ -1,0 +1,53 @@
+import { Shield, Lock } from "lucide-react";
+import { GuardianAgentState } from "@/types/guardian";
+
+interface CallHeaderProps {
+  state: GuardianAgentState | null;
+}
+
+export function CallHeader({ state }: CallHeaderProps) {
+  const formatDuration = (startTime?: string) => {
+    if (!startTime) return "00:00";
+    const start = new Date(startTime).getTime();
+    const now = Date.now();
+    const seconds = Math.floor((now - start) / 1000);
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  return (
+    <header className="bg-card border-b border-border px-6 py-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Shield className="h-8 w-8 text-guardian-blue" />
+          <div>
+            <h1 className="text-xl tracking-tight text-foreground">Guardian Agent</h1>
+            <p className="text-sm text-muted-foreground">Call Monitoring</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-6">
+          {state?.call_sid && (
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">Call ID</p>
+              <p className="text-base text-foreground font-medium">{state.call_sid.slice(0, 12)}...</p>
+            </div>
+          )}
+          
+          {state?.call_started_at && (
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">Duration</p>
+              <p className="text-base text-foreground font-medium">{formatDuration(state.call_started_at)}</p>
+            </div>
+          )}
+          
+          <div className="flex items-center gap-2 px-3 py-2 bg-guardian-light rounded-lg">
+            <Lock className="h-4 w-4 text-guardian-blue" />
+            <span className="text-sm text-guardian-blue">Secure monitoring</span>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}

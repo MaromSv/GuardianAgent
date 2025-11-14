@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 40 10% 97%;
+    --foreground: 220 15% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 20%;
+
+    --primary: 200 70% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 20% 92%;
+    --secondary-foreground: 220 15% 20%;
+
+    --muted: 210 20% 92%;
+    --muted-foreground: 220 10% 45%;
+
+    --accent: 180 60% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 85%;
+    --input: 220 15% 90%;
+    --ring: 200 70% 50%;
+
+    --radius: 0.75rem;
+    
+    --risk-low: 142 70% 45%;
+    --risk-medium: 38 92% 50%;
+    --risk-high: 0 84% 60%;
+    
+    --guardian-blue: 200 70% 50%;
+    --guardian-blue-light: 200 70% 95%;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 220 20% 15%;
+    --foreground: 40 10% 95%;
+
+    --card: 220 20% 18%;
+    --card-foreground: 40 10% 95%;
+
+    --popover: 220 20% 18%;
+    --popover-foreground: 40 10% 95%;
+
+    --primary: 200 70% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 15% 25%;
+    --secondary-foreground: 40 10% 95%;
+
+    --muted: 220 15% 25%;
+    --muted-foreground: 220 10% 60%;
+
+    --accent: 180 60% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 30%;
+    --input: 220 15% 30%;
+    --ring: 200 70% 50%;
+    
+    --sidebar-background: 220 20% 15%;
+    --sidebar-foreground: 40 10% 95%;
+    --sidebar-primary: 200 70% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 15% 25%;
+    --sidebar-accent-foreground: 40 10% 95%;
+    --sidebar-border: 220 15% 30%;
+    --sidebar-ring: 200 70% 50%;
+    
+    --guardian-blue: 200 70% 50%;
+    --guardian-blue-light: 200 70% 20%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-['Poppins',sans-serif];
+  }
+}
