@@ -34,6 +34,39 @@ const toolLabels: Record<string, string> = {
   speech_generation: "Generating response",
 };
 
+// Helper function to get color based on risk score
+function getRiskColor(riskScore: number): { bg: string; border: string; text: string; label: string } {
+  if (riskScore >= 80) {
+    return {
+      bg: "rgba(239, 68, 68, 0.15)",  // red-500 with opacity
+      border: "rgba(239, 68, 68, 0.4)",
+      text: "rgb(185, 28, 28)",  // red-700
+      label: "rgb(239, 68, 68)"   // red-500
+    };
+  } else if (riskScore >= 60) {
+    return {
+      bg: "rgba(249, 115, 22, 0.15)",  // orange-500 with opacity
+      border: "rgba(249, 115, 22, 0.4)",
+      text: "rgb(194, 65, 12)",  // orange-700
+      label: "rgb(249, 115, 22)"  // orange-500
+    };
+  } else if (riskScore >= 30) {
+    return {
+      bg: "rgba(234, 179, 8, 0.15)",  // yellow-500 with opacity
+      border: "rgba(234, 179, 8, 0.4)",
+      text: "rgb(161, 98, 7)",  // yellow-700
+      label: "rgb(234, 179, 8)"  // yellow-500
+    };
+  } else {
+    return {
+      bg: "rgba(107, 114, 128, 0.1)",  // gray-500 with opacity
+      border: "rgba(107, 114, 128, 0.2)",
+      text: "rgb(55, 65, 81)",  // gray-700
+      label: "rgb(107, 114, 128)"  // gray-500
+    };
+  }
+}
+
 export function ConversationView({ state }: ConversationViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [lastTranscriptLength, setLastTranscriptLength] = useState(0);
@@ -115,34 +148,63 @@ export function ConversationView({ state }: ConversationViewProps) {
           const isUser = speaker === "user";
           const isCaller = speaker === "caller";
           
+          // Get current risk score for dynamic caller coloring
+          const currentRisk = state?.analysis?.risk_score || state?.reputation_check?.risk_score || 0;
+          const riskColors = isCaller ? getRiskColor(currentRisk) : null;
+          
           return (
             <div key={index} className={`flex ${isUser || isGuardian ? "justify-start" : "justify-end"}`}>
-              <div className={`max-w-[70%] rounded-2xl px-5 py-3 ${
-                isGuardian
-                  ? "bg-green-500/10 border-2 border-green-500/40 shadow-sm"
-                  : isUser
-                  ? "bg-blue-500/10 border border-blue-500/20"
-                  : "bg-orange-500/10 border border-orange-500/20"
-              }`}>
+              <div 
+                className={`max-w-[70%] rounded-2xl px-5 py-3 transition-all duration-500 ${
+                  isGuardian
+                    ? "bg-green-500/10 border-2 border-green-500/40 shadow-sm"
+                    : isUser
+                    ? "bg-blue-500/10 border border-blue-500/20"
+                    : ""
+                }`}
+                style={isCaller && riskColors ? {
+                  backgroundColor: riskColors.bg,
+                  borderWidth: "1px",
+                  borderStyle: "solid",
+                  borderColor: riskColors.border,
+                } : {}}
+              >
                 <div className="flex items-center gap-2 mb-1">
                   {isGuardian && <Shield className="h-4 w-4 text-green-600 dark:text-green-400" />}
-                  <p className={`text-sm font-medium ${
-                    isGuardian
-                      ? "text-green-700 dark:text-green-300"
-                      : isUser
-                      ? "text-blue-700 dark:text-blue-300"
-                      : "text-orange-700 dark:text-orange-300"
-                  }`}>
+                  <p 
+                    className={`text-sm font-medium ${
+                      isGuardian
+                        ? "text-green-700 dark:text-green-300"
+                        : isUser
+                        ? "text-blue-700 dark:text-blue-300"
+                        : ""
+                    }`}
+                    style={isCaller && riskColors ? { color: riskColors.text } : {}}
+                  >
                     {isGuardian ? "Guardian" : isUser ? "You" : "Caller"}
                   </p>
+                  {isCaller && currentRisk > 0 && (
+                    <span 
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full transition-all duration-500"
+                      style={riskColors ? {
+                        backgroundColor: riskColors.label + "20",
+                        color: riskColors.label,
+                      } : {}}
+                    >
+                      {currentRisk.toFixed(0)}% risk
+                    </span>
+                  )}
                 </div>
-                <p className={`text-base leading-relaxed ${
-                  isGuardian
-                    ? "text-green-900 dark:text-green-100"
-                    : isUser
-                    ? "text-blue-900 dark:text-blue-100"
-                    : "text-orange-900 dark:text-orange-100"
-                }`}>
+                <p 
+                  className={`text-base leading-relaxed ${
+                    isGuardian
+                      ? "text-green-900 dark:text-green-100"
+                      : isUser
+                      ? "text-blue-900 dark:text-blue-100"
+                      : ""
+                  }`}
+                  style={isCaller && riskColors ? { color: riskColors.text } : {}}
+                >
                   {entry.text}
                 </p>
               </div>

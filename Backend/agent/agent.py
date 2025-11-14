@@ -5,14 +5,16 @@ from typing import TypedDict, Dict, Any, List, Optional
 import uuid
 import time
 import json
+import os
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
-from utils.check_phone_reputation import placeholder_check_reputation
-from utils.assess_scam_probability import placeholder_analyze_transcript
-from utils.agent_script import placeholder_generate_guardian_message
-from utils.tts import placeholder_text_to_speech
-from logger import logger
+from .utils.check_phone_reputation import check_reputation
+from .utils.assess_scam_probability import analyze_transcript
+from .utils.agent_script import generate_guardian_message
+from .utils.tts import placeholder_text_to_speech
+from .utils.report_scam import add_scam_to_database
+from .logger import logger
 
 
 class GuardianState(TypedDict, total=False):
@@ -51,10 +53,24 @@ class GuardianState(TypedDict, total=False):
 
     # Activity log for UI/debug
     activity: List[Dict[str, Any]]
+    
+    # Current tool being used (for UI display)
+    current_tool: str  # e.g., "phone_reputation_check", "transcript_analysis", "web_search", "decision_making", None
+    current_tool_description: str  # Human-readable description of what the tool is doing
 
 
 def _log(state: GuardianState, stage: str, data: Dict[str, Any]) -> GuardianState:
+    """
+    Log an activity entry. Includes current_tool info if set (for historical record).
+    """
     entry = {"stage": stage, "data": data}
+    # Include current tool info if it's set (for historical record)
+    current_tool = state.get("current_tool")
+    if current_tool:
+        entry["tool"] = current_tool
+    current_tool_desc = state.get("current_tool_description")
+    if current_tool_desc:
+        entry["tool_description"] = current_tool_desc
     logger.log_tool_result(stage, entry)
     state.setdefault("activity", []).append(entry)
     return state
@@ -76,8 +92,9 @@ class GuardianAgent:
       - whenever risk is high enough, n_generate_utterance creates speech
     """
 
-    # This is your “loop interval”: how often we re-analyze transcript
-    ANALYZE_INTERVAL_SECONDS = 30
+    # This is your "loop interval": how often we re-analyze transcript
+    # Can be overridden via environment variable for testing
+    ANALYZE_INTERVAL_SECONDS = int(os.getenv("GUARDIAN_ANALYZE_INTERVAL", "30"))
 
     def __init__(self, llm=None):
         self.llm = llm  # reserved for later, e.g., real OpenAI client
@@ -132,7 +149,11 @@ class GuardianAgent:
             return state
 
         if "reputation_check" not in state:
-            rep = placeholder_check_reputation(caller_number)
+            # Set current tool for UI
+            state["current_tool"] = "phone_reputation_check"
+            state["current_tool_description"] = f"Checking phone number {caller_number} against scam database"
+            
+            rep = check_reputation(caller_number)
             state["reputation_check"] = rep
             _log(state, "check_reputation", rep)
 
@@ -174,15 +195,20 @@ class GuardianAgent:
 
     def n_analyze(self, state: GuardianState) -> GuardianState:
         """
-        Placeholder scam analysis over full transcript.
+        Analyze transcript for scam indicators using AI.
         """
-        analysis_obj = placeholder_analyze_transcript(state["transcript"])
+        # Set current tool for UI
+        state["current_tool"] = "transcript_analysis"
+        state["current_tool_description"] = "Analyzing conversation for scam indicators"
+        
+        analysis_obj = analyze_transcript(state["transcript"])
         state["analysis"] = analysis_obj
         state.setdefault("analysis_history", []).append(
             {"ts": time.time(), **analysis_obj}
         )
         state["last_analysis_ts"] = time.time()
         _log(state, "analyze_transcript", analysis_obj)
+        
         return state
 
     def n_decide(self, state: GuardianState) -> GuardianState:
@@ -191,15 +217,14 @@ class GuardianAgent:
           - observe
           - question
           - warn
-        Very simple rule-based logic for now.
+        Based on AI transcript analysis and phone reputation database.
         """
         analysis = state.get("analysis") or {}
         rep = state.get("reputation_check") or {}
 
-        risk = max(
-            analysis.get("risk_score", 0.0),
-            rep.get("risk_score", 0.0),
-        )
+        transcript_risk = analysis.get("risk_score", 0.0)
+        phone_risk = rep.get("risk_score", 0.0)
+        risk = max(transcript_risk, phone_risk)
 
         if risk >= 80:
             action = "warn"
@@ -208,34 +233,57 @@ class GuardianAgent:
         else:
             action = "observe"
 
+        # Build detailed reason showing which source contributed most
+        if phone_risk > 0 and transcript_risk > 0:
+            if phone_risk >= transcript_risk:
+                if rep.get("known_scam"):
+                    reason_text = f"High risk={risk:.0f}% (known scam database match). Conversation analysis: {transcript_risk:.0f}%"
+                else:
+                    reason_text = f"Combined risk={risk:.0f}% (phone: {phone_risk:.0f}%, conversation: {transcript_risk:.0f}%)"
+            else:
+                reason_text = f"High risk={risk:.0f}% from conversation analysis. Phone reputation: {phone_risk:.0f}%"
+        elif phone_risk > 0:
+            if rep.get("known_scam"):
+                reason_text = f"Known scam number detected (risk: {phone_risk:.0f}%)"
+            else:
+                reason_text = f"Phone reputation risk: {phone_risk:.0f}%"
+        elif transcript_risk > 0:
+            reason_text = f"Conversation analysis risk: {transcript_risk:.0f}%"
+        else:
+            reason_text = "No risk detected"
+
         decision = {
             "action": action,
-            "reason": f"Combined risk={risk:.1f} based on placeholder analysis.",
+            "reason": reason_text,
             "risk_score": risk,
         }
 
+        # Set current tool for UI
+        state["current_tool"] = "decision_making"
+        state["current_tool_description"] = "Evaluating risk and deciding on action"
+        
         # For now, we never auto-stop the call
         state["decision"] = decision
         state["stop_call"] = False
         state["should_continue"] = True  # placeholder for future more complex loops
 
         _log(state, "decide_action", decision)
+        
         return state
 
     def n_process_scam(self, state: GuardianState) -> GuardianState:
         """
-        Node that runs when we are confident this is a scam (action == 'warn').
-
-        For now it's just a placeholder where you'd:
-          - report the number to an external scam database
-          - update your own internal reputation DB
-          - trigger notifications, etc.
+        Process a detected scam by adding the number to the local database.
+        This runs when we are confident this is a scam (action == 'warn').
+        
+        The number will be added to scam_numbers.json for future detection.
         """
         decision = state.get("decision") or {}
         caller_number = state.get("caller_number")
         risk = decision.get("risk_score")
+        analysis = state.get("analysis") or {}
 
-        # Only process once if you like
+        # Only process once per call
         if state.get("scam_processed"):
             _log(
                 state,
@@ -249,11 +297,20 @@ class GuardianAgent:
 
         state["scam_processed"] = True
 
+        # Add the scam number to our local database
+        result = add_scam_to_database(
+            phone_number=caller_number,
+            risk_score=risk,
+            analysis=analysis,
+            decision=decision
+        )
+
         scam_data = {
             "caller_number": caller_number,
             "risk_score": risk,
             "decision": decision,
-            "note": "Placeholder: here we would report the scam number online.",
+            "database_update": result,
+            "note": result.get("message", "Scam processing completed"),
         }
 
         state["scam_report_result"] = scam_data
@@ -263,7 +320,7 @@ class GuardianAgent:
 
     def n_generate_utterance(self, state: GuardianState) -> GuardianState:
         """
-        Generate what GuardianAgent should say, using placeholder logic.
+        Generate Guardian intervention message using AI.
         Only runs if decision.action != "observe".
         """
         decision = state.get("decision") or {}
@@ -278,12 +335,24 @@ class GuardianAgent:
             )
             return state
 
-        text = placeholder_generate_guardian_message(
+        # Set current tool for UI
+        state["current_tool"] = "speech_generation"
+        state["current_tool_description"] = "Generating Guardian intervention message"
+        
+        text = generate_guardian_message(
             state["transcript"],
             state.get("analysis") or {},
         )
         state["guardian_utterance_text"] = text
+        
+        # Add Guardian message to transcript so it appears as a normal chat bubble
+        state["transcript"].append({
+            "speaker": "guardian",
+            "text": text,
+        })
+        
         _log(state, "generate_utterance", {"utterance": text})
+        
         return state
 
     def n_tts(self, state: GuardianState) -> GuardianState:
@@ -315,6 +384,11 @@ class GuardianAgent:
             "scam_processed": state.get("scam_processed", False),
         }
         _log(state, "finalize_step", summary)
+        
+        # Clear tool status after workflow completes
+        state["current_tool"] = ""
+        state["current_tool_description"] = ""
+        
         return state
 
     # ─────────────────────────── Graph wiring ─────────────────────────── #
@@ -335,6 +409,22 @@ class GuardianAgent:
         builder.add_edge(START, "init")
         builder.add_edge("init", "check_reputation")
         builder.add_edge("check_reputation", "update_transcript")
+
+        # After updating transcript, decide if we should analyze or just finalize
+        def branch_after_update(state: GuardianState):
+            if state.get("should_analyze_now", False):
+                return "analyze"
+            else:
+                return "skip_analysis"
+
+        builder.add_conditional_edges(
+            "update_transcript",
+            branch_after_update,
+            {
+                "analyze": "analyze",
+                "skip_analysis": "finalize",
+            },
+        )
 
         # If we analyzed, we then decide what to do
         builder.add_edge("analyze", "decide")

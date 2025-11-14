@@ -33,7 +33,9 @@ export function CallerReputation({ state }: CallerReputationProps) {
         <div className="space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-sm text-muted-foreground">Risk Score</span>
-            <span className="text-base font-medium text-foreground">{(riskScore * 100).toFixed(0)}%</span>
+            <span className="text-base font-medium text-foreground">
+              {riskScore > 1 ? riskScore.toFixed(0) : (riskScore * 100).toFixed(0)}%
+            </span>
           </div>
           
           <div className="flex justify-between items-center">
@@ -60,6 +62,13 @@ export function CallerReputation({ state }: CallerReputationProps) {
             </div>
           )}
         </div>
+        
+        {reputation.scam_type && (
+          <div className="mt-4 p-3 bg-risk-high/10 border border-risk-high/20 rounded-lg">
+            <p className="text-sm font-medium text-risk-high mb-1">Scam Details</p>
+            <p className="text-sm text-foreground">{reputation.scam_type}</p>
+          </div>
+        )}
       </div>
     </div>
   );

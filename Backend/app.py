@@ -1,8 +1,16 @@
 # app.py
+import os
 from flask import Flask, request, jsonify
-from guardian_agent import GuardianAgent
+from flask_cors import CORS
+from dotenv import load_dotenv
+from agent.agent import GuardianAgent
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
+# Enable CORS for all routes (allows frontend to access backend)
+CORS(app)
 
 # Create ONE shared agent instance
 # (MemorySaver inside it stores per-call state by call_sid)
@@ -60,18 +68,43 @@ def get_call_state(call_sid):
     """
     Return the entire agent state for debugging.
     """
-    # Re-run with an empty chunk to pull the saved state
-    state = agent.graph.get_state(thread_id=call_sid)
+    # Get the saved state using the config format
+    checkpoint = agent.graph.get_state(
+        config={
+            "configurable": {
+                "thread_id": call_sid,
+            }
+        }
+    )
+    
+    # Extract values from checkpoint (checkpoint is a tuple/list, values are at index 0)
+    # Or use checkpoint.values if it's a Checkpoint object
+    if checkpoint is None:
+        return jsonify({"state": {"values": None}})
+    
+    # Handle tuple/list checkpoint structure
+    if isinstance(checkpoint, (list, tuple)) and len(checkpoint) > 0:
+        values = checkpoint[0]
+    elif hasattr(checkpoint, 'values'):
+        values = checkpoint.values
+    else:
+        values = checkpoint
 
     return jsonify(
         {
-            "state": state,
+            "state": {
+                "values": values,
+            }
         }
     )
 
 
 if __name__ == "__main__":
+    # Get configuration from environment variables
+    host = os.getenv("FLASK_HOST", "0.0.0.0")
+    port = int(os.getenv("FLASK_PORT", 5000))
+    debug = os.getenv("FLASK_DEBUG", "True").lower() == "true"
+    
     # Run Flask development server
-    # Use: python app.py
-    print("Starting GuardianAgent Flask server on http://127.0.0.1:5000")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    print(f"Starting GuardianAgent Flask server on http://{host}:{port}")
+    app.run(host=host, port=port, debug=debug)

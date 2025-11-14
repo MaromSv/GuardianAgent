@@ -6,9 +6,10 @@ interface CallHeaderProps {
 }
 
 export function CallHeader({ state }: CallHeaderProps) {
-  const formatDuration = (startTime?: string) => {
+  const formatDuration = (startTime?: number) => {
     if (!startTime) return "00:00";
-    const start = new Date(startTime).getTime();
+    // startTime is Unix timestamp in seconds, convert to milliseconds
+    const start = startTime * 1000;
     const now = Date.now();
     const seconds = Math.floor((now - start) / 1000);
     const mins = Math.floor(seconds / 60);

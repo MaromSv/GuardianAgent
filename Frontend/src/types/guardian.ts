@@ -8,6 +8,9 @@ export interface ReputationCheck {
   risk_score?: number;
   known_scam?: boolean;
   source?: string;
+  scam_type?: string;
+  database_match?: boolean;
+  match_type?: string;
 }
 
 export interface Analysis {

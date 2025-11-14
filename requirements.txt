@@ -1,2 +1,7 @@
-flask 
+flask
+flask-cors
+python-dotenv
+langgraph
+rich
 twilio
+openai

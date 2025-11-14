@@ -11,8 +11,10 @@ export function RiskSummary({ state }: RiskSummaryProps) {
   const reason = state?.decision?.reason || state?.analysis?.reason || "Monitoring call";
 
   const getRiskLevel = (score: number): "low" | "medium" | "high" => {
-    if (score < 0.3) return "low";
-    if (score < 0.7) return "medium";
+    // Handle both 0-1 range and 0-100 range
+    const normalizedScore = score > 1 ? score / 100 : score;
+    if (normalizedScore < 0.3) return "low";
+    if (normalizedScore < 0.7) return "medium";
     return "high";
   };
 
@@ -57,7 +59,9 @@ export function RiskSummary({ state }: RiskSummaryProps) {
       <div className="space-y-3">
         <div className="flex justify-between items-center">
           <span className="text-sm text-muted-foreground">Risk Score</span>
-          <span className="text-base font-medium text-foreground">{(riskScore * 100).toFixed(0)}%</span>
+          <span className="text-base font-medium text-foreground">
+            {riskScore > 1 ? riskScore.toFixed(0) : (riskScore * 100).toFixed(0)}%
+          </span>
         </div>
         
         <div className="flex justify-between items-center">
@@ -68,7 +72,9 @@ export function RiskSummary({ state }: RiskSummaryProps) {
         {state?.analysis?.confidence !== undefined && (
           <div className="flex justify-between items-center">
             <span className="text-sm text-muted-foreground">Confidence</span>
-            <span className="text-base font-medium text-foreground">{(state.analysis.confidence * 100).toFixed(0)}%</span>
+            <span className="text-base font-medium text-foreground">
+              {state.analysis.confidence > 1 ? state.analysis.confidence.toFixed(0) : (state.analysis.confidence * 100).toFixed(0)}%
+            </span>
           </div>
         )}
       </div>
