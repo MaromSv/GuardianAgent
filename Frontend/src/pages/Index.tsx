@@ -1,10 +1,15 @@
-import { Shield, Lock, Eye } from "lucide-react";
+import { Lock, Eye } from "lucide-react";
 
 const Index = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6">
       <div className="text-center max-w-2xl">
-        <Shield className="h-24 w-24 text-primary mx-auto mb-8" />
+        {/* Custom Logo */}
+        <img 
+          src="/logo.svg" 
+          alt="Guardian Agent" 
+          className="h-32 w-32 mx-auto mb-8"
+        />
         <h1 className="mb-4 text-5xl tracking-tight text-foreground font-medium">
           Guardian Agent
         </h1>
