@@ -2,10 +2,66 @@
 Fact-checking utility for validating claims made by callers.
 Uses LLM to verify organizational policies, procedures, and common scam tactics.
 """
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import os
 import json
 from openai import OpenAI
+from pydantic import BaseModel, Field, validator
+
+
+# Pydantic models for validation
+class FactCheckClaim(BaseModel):
+    """Model for a single claim (verified or suspicious)."""
+    claim: str
+    verification: Optional[str] = None
+    problem: Optional[str] = None
+    reality: Optional[str] = None
+    severity: Optional[str] = None
+    
+    @validator('severity')
+    def validate_severity(cls, v):
+        """Ensure severity is valid if provided."""
+        if v is not None:
+            valid_severities = ["high", "medium", "low"]
+            if v.lower() not in valid_severities:
+                return "medium"  # Default
+            return v.lower()
+        return v
+
+
+class FactCheckResponse(BaseModel):
+    """Pydantic model for validating fact-check LLM response."""
+    verified_claims: List[FactCheckClaim] = Field(default_factory=list)
+    suspicious_claims: List[FactCheckClaim] = Field(default_factory=list)
+    risk_increase: float = Field(..., ge=0.0, le=50.0, description="Additional risk from fact-checking (0-50)")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in fact-check results")
+    summary: str = Field(..., min_length=1, description="Overall assessment summary")
+    
+    @validator('risk_increase', pre=True)
+    def validate_risk_increase(cls, v):
+        """Ensure risk_increase is a valid number within range."""
+        try:
+            risk = float(v)
+            if risk < 0.0:
+                return 0.0
+            if risk > 50.0:
+                return 50.0
+            return risk
+        except (ValueError, TypeError):
+            raise ValueError(f"risk_increase must be a number between 0-50, got: {v}")
+    
+    @validator('confidence', pre=True)
+    def validate_confidence(cls, v):
+        """Ensure confidence is a valid number within range."""
+        try:
+            conf = float(v)
+            if conf < 0.0:
+                return 0.0
+            if conf > 1.0:
+                return 1.0
+            return conf
+        except (ValueError, TypeError):
+            raise ValueError(f"confidence must be a number between 0.0-1.0, got: {v}")
 
 
 # Initialize OpenAI client
@@ -160,26 +216,31 @@ Validate each claim against known legitimate business practices. Identify any re
         
         # Parse response
         result_text = response.choices[0].message.content.strip()
-        result = json.loads(result_text)
+        result_json = json.loads(result_text)
         
-        # Validate and normalize
-        verified_claims = result.get("verified_claims", [])
-        suspicious_claims = result.get("suspicious_claims", [])
-        risk_increase = float(result.get("risk_increase", 0))
-        confidence = float(result.get("confidence", 0.5))
-        
-        # Ensure values in valid ranges
-        risk_increase = max(0.0, min(50.0, risk_increase))
-        confidence = max(0.0, min(1.0, confidence))
-        
-        return {
-            "verified_claims": verified_claims,
-            "suspicious_claims": suspicious_claims,
-            "risk_increase": risk_increase,
-            "confidence": confidence,
-            "summary": result.get("summary", "Fact-check completed"),
-            "model": model,
-        }
+        # Validate using Pydantic model (ensures proper types and ranges)
+        try:
+            validated = FactCheckResponse(**result_json)
+            
+            return {
+                "verified_claims": [claim.dict() for claim in validated.verified_claims],
+                "suspicious_claims": [claim.dict() for claim in validated.suspicious_claims],
+                "risk_increase": validated.risk_increase,
+                "confidence": validated.confidence,
+                "summary": validated.summary,
+                "model": model,
+            }
+        except Exception as validation_error:
+            print(f"Pydantic validation error in fact-check: {validation_error}")
+            # If validation fails, use safe defaults
+            return {
+                "verified_claims": result_json.get("verified_claims", []),
+                "suspicious_claims": result_json.get("suspicious_claims", []),
+                "risk_increase": max(0.0, min(50.0, float(result_json.get("risk_increase", 0)))),
+                "confidence": max(0.0, min(1.0, float(result_json.get("confidence", 0.5)))),
+                "summary": result_json.get("summary", "Fact-check completed"),
+                "model": model,
+            }
         
     except ValueError as e:
         # API key not set

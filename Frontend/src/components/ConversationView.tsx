@@ -21,6 +21,8 @@ function LoadingDots() {
 const toolIcons: Record<string, typeof Shield> = {
   phone_reputation_check: Phone,
   transcript_analysis: Brain,
+  fact_checking: Search,
+  authority_reporting: Shield,
   web_search: Search,
   decision_making: Shield,
   speech_generation: MessageSquare,
@@ -29,6 +31,8 @@ const toolIcons: Record<string, typeof Shield> = {
 const toolLabels: Record<string, string> = {
   phone_reputation_check: "Checking caller reputation",
   transcript_analysis: "Analyzing conversation",
+  fact_checking: "Verifying caller's claims",
+  authority_reporting: "Reporting to authorities",
   web_search: "Searching online",
   decision_making: "Evaluating risk",
   speech_generation: "Generating response",

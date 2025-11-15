@@ -2,10 +2,60 @@ from typing import List, Dict, Any
 import os
 import json
 from openai import OpenAI
+from pydantic import BaseModel, Field, validator
 
 
 # Initialize OpenAI client (will use OPENAI_API_KEY from environment)
 _client = None
+
+
+class ScamAnalysisResponse(BaseModel):
+    """
+    Pydantic model for validating LLM response structure.
+    Ensures risk_score and confidence are always proper numeric types.
+    """
+    risk_score: float = Field(..., ge=0.0, le=100.0, description="Risk score from 0-100")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence level from 0.0-1.0")
+    reason: str = Field(..., min_length=1, description="Explanation of the assessment")
+    scam_indicators: List[str] = Field(default_factory=list, description="List of detected scam indicators")
+    recommended_action: str = Field(..., description="Recommended action: observe, question, or warn")
+    
+    @validator('risk_score', pre=True)
+    def validate_risk_score(cls, v):
+        """Ensure risk_score is a valid number and within range."""
+        try:
+            score = float(v)
+            if score < 0.0:
+                return 0.0
+            if score > 100.0:
+                return 100.0
+            return score
+        except (ValueError, TypeError):
+            raise ValueError(f"risk_score must be a number between 0-100, got: {v}")
+    
+    @validator('confidence', pre=True)
+    def validate_confidence(cls, v):
+        """Ensure confidence is a valid number and within range."""
+        try:
+            conf = float(v)
+            if conf < 0.0:
+                return 0.0
+            if conf > 1.0:
+                return 1.0
+            return conf
+        except (ValueError, TypeError):
+            raise ValueError(f"confidence must be a number between 0.0-1.0, got: {v}")
+    
+    @validator('recommended_action')
+    def validate_action(cls, v):
+        """Ensure recommended_action is one of the valid options."""
+        valid_actions = ["observe", "question", "warn"]
+        if v.lower() not in valid_actions:
+            # Default to "observe" if invalid
+            print(f"Warning: Invalid action '{v}', defaulting to 'observe'")
+            return "observe"
+        return v.lower()
+
 
 def _get_openai_client():
     """Lazy-load OpenAI client (supports OpenAI, Featherless, or any OpenAI-compatible API)."""
@@ -108,24 +158,31 @@ Provide your fraud risk assessment as JSON."""
         
         # Parse the response
         result_text = response.content.strip() if hasattr(response, 'content') else response.choices[0].message.content.strip()
-        result = json.loads(result_text)
+        result_json = json.loads(result_text)
         
-        # Validate and normalize the response
-        risk_score = float(result.get("risk_score", 0.0))
-        confidence = float(result.get("confidence", 0.5))
-        
-        # Ensure values are in valid ranges
-        risk_score = max(0.0, min(100.0, risk_score))
-        confidence = max(0.0, min(1.0, confidence))
-        
-        return {
-            "risk_score": risk_score,
-            "confidence": confidence,
-            "reason": result.get("reason", "AI-based transcript analysis completed"),
-            "scam_indicators": result.get("scam_indicators", []),
-            "recommended_action": result.get("recommended_action", "observe"),
-            "model": model,  # Return the actual model used
-        }
+        # Validate using Pydantic model (ensures proper types and ranges)
+        try:
+            validated = ScamAnalysisResponse(**result_json)
+            
+            return {
+                "risk_score": validated.risk_score,
+                "confidence": validated.confidence,
+                "reason": validated.reason,
+                "scam_indicators": validated.scam_indicators,
+                "recommended_action": validated.recommended_action,
+                "model": model,  # Return the actual model used
+            }
+        except Exception as validation_error:
+            print(f"Pydantic validation error: {validation_error}")
+            # If validation fails, use fallback with safe defaults
+            return {
+                "risk_score": float(result_json.get("risk_score", 0.0)),
+                "confidence": max(0.0, min(1.0, float(result_json.get("confidence", 0.5)))),
+                "reason": result_json.get("reason", "AI-based transcript analysis completed"),
+                "scam_indicators": result_json.get("scam_indicators", []),
+                "recommended_action": result_json.get("recommended_action", "observe"),
+                "model": model,
+            }
         
     except ValueError as e:
         # API key not set
