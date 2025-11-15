@@ -1,22 +1,11 @@
-"""
-Browser automation utility for reporting confirmed scam phone numbers to authorities.
-Uses browser_use to automate form filling on official scam reporting websites.
-
-This runs ONLY when we are 100% confident a call is a scam (action == 'warn').
-"""
 import asyncio
 import os
 from typing import Dict, Any, Optional
 from datetime import datetime
 import traceback
 
-try:
-    from browser_use import Agent, Browser, ChatBrowserUse
-    BROWSER_USE_AVAILABLE = True
-except ImportError:
-    BROWSER_USE_AVAILABLE = False
-    print("Warning: browser_use not installed. Scam reporting to authorities will be disabled.")
-
+from browser_use import Agent, Browser, ChatBrowserUse
+BROWSER_USE_AVAILABLE = True
 
 # Configurable reporting authorities
 AUTHORITIES = {
@@ -71,7 +60,11 @@ def _build_reporting_task(
     authority_config: Dict[str, Any],
 ) -> str:
     """Build the task prompt for the browser agent. Creates a natural description from GuardianState data."""
-    
+    # For simple, repeatable testing we hardcode the scammer number here,
+    # so every report uses the same known scam from our local database.
+    # (Wells Fargo impersonation in the scam_numbers.json list)
+    caller_number = "+18656304266"
+
     # Build natural, human-like description
     reason = decision.get("reason", "")
     indicators = analysis.get("scam_indicators", [])

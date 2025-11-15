@@ -75,12 +75,13 @@ export function ConversationView({ state }: ConversationViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [lastTranscriptLength, setLastTranscriptLength] = useState(0);
   const [showLoading, setShowLoading] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(true);
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && autoScroll) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [state?.transcript]);
+  }, [state?.transcript, autoScroll]);
 
   // Track transcript changes to show/hide loading indicator
   useEffect(() => {
@@ -100,6 +101,17 @@ export function ConversationView({ state }: ConversationViewProps) {
       setLastTranscriptLength(currentLength);
     }
   }, [state?.transcript, lastTranscriptLength]);
+
+  // Allow user to scroll up without being forced back to bottom
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    // If the user is within 80px of the bottom, keep auto-scrolling;
+    // otherwise, freeze the scroll position until they scroll back down.
+    setAutoScroll(distanceFromBottom < 80);
+  };
 
   const hasTranscript = state?.transcript && state.transcript.length > 0;
   const isCallActive = state?.call_sid && state?.call_started_at;
@@ -132,14 +144,13 @@ export function ConversationView({ state }: ConversationViewProps) {
     <div className="flex flex-col h-full bg-card rounded-lg border border-border">
       <div className="px-6 py-4 border-b border-border">
         <h2 className="text-lg tracking-tight text-foreground">Conversation</h2>
-        {state?.user_number && state?.caller_number && (
-          <p className="text-sm text-muted-foreground mt-1">
-            {state.user_number} ↔ {state.caller_number}
-          </p>
-        )}
       </div>
       
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 pb-24">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-6 space-y-4 pb-24"
+      >
         {!hasTranscript && (
           <div className="flex items-center justify-center h-full">
             <p className="text-muted-foreground text-lg">Waiting for conversation to start...</p>
@@ -147,14 +158,32 @@ export function ConversationView({ state }: ConversationViewProps) {
         )}
         
         {state?.transcript?.map((entry, index) => {
-          const speaker = entry.speaker;
-          const isGuardian = speaker === "guardian";
+          const speaker = entry.speaker as string | undefined;
+
+          // Backend may label speakers as:
+          // - "user"                    → protected person
+          // - "caller" / "pottential_scammer" → potential scammer
+          // - "guardian" / "agent"      → Guardian Agent
+          const isGuardian = speaker === "guardian" || speaker === "agent";
           const isUser = speaker === "user";
-          const isCaller = speaker === "potential_scammer";
+          const isCaller =
+            speaker === "caller" ||
+            speaker === "pottential_scammer" ||
+            speaker === "potential_scammer";
           
-          // Get current risk score for dynamic caller coloring
+          // Get current risk score for badge (0–100)
           const currentRisk = state?.analysis?.risk_score || state?.reputation_check?.risk_score || 0;
-          const riskColors = isCaller ? getRiskColor(currentRisk) : null;
+
+          // For visualization, always show potential scammer bubbles in a consistent orange tone,
+          // regardless of the exact risk score. The badge still shows the numeric risk.
+          const riskColors = isCaller
+            ? {
+                bg: "rgba(249, 115, 22, 0.15)", // orange
+                border: "rgba(249, 115, 22, 0.4)",
+                text: "rgb(194, 65, 12)",
+                label: "rgb(249, 115, 22)",
+              }
+            : null;
           
           return (
             <div key={index} className={`flex ${isUser || isGuardian ? "justify-start" : "justify-end"}`}>
@@ -185,7 +214,7 @@ export function ConversationView({ state }: ConversationViewProps) {
                     }`}
                     style={isCaller && riskColors ? { color: riskColors.text } : {}}
                   >
-                    {isGuardian ? "Guardian" : isUser ? "You" : "Caller"}
+                    {isGuardian ? "Guardian" : isUser ? "User" : "Potential Scammer"}
                   </p>
                   {isCaller && currentRisk > 0 && (
                     <span 
