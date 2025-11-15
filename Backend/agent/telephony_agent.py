@@ -26,6 +26,10 @@ from livekit.plugins import deepgram, openai, cartesia, silero, elevenlabs
 from agent.shared_state import shared_state, save_shared_state
 from agent.agent import GuardianAgent
 
+from utils.sms import send_family_alert_sms
+from shared_state import shared_state
+from agent import GuardianAgent
+
 load_dotenv()
 logger = logging.getLogger("telephony-agent")
 
@@ -133,7 +137,18 @@ async def on_call_hangup(ctx: JobContext, pipeline_task: asyncio.Task):
             except asyncio.CancelledError:
                 logger.info("✅ Guardian pipeline timer cancelled successfully")
 
-        # TODO: Add final processing steps here...
+        # If the call was determined to be a scam, send SMS alert to family member
+        if shared_state.get("decision", {}).get("action") == "warn":
+            family_number = "+31615869452"
+            scam_details = shared_state.get("analysis", {}).get("reason", "")
+            risk = shared_state["decision"].get("risk_score", 0)
+
+            send_family_alert_sms(
+                family_number=family_number,
+                user_number=shared_state["user_number"],
+                scam_details=scam_details,
+                risk_score=risk,
+            )
 
         logger.info(f"🏁 Hangup processing complete for call: {call_sid}")
 
