@@ -6,6 +6,5 @@ rich
 twilio
 openai
 pydantic
-
-# Optional: For automated authority reporting (report_to_authorities.py)
-# browser-use
+browser-use
+langchain-openai

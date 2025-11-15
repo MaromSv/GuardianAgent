@@ -1,0 +1,54 @@
+<svg
+  width="256"
+  height="256"
+  viewBox="0 0 256 256"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <!-- Shield -->
+  <path
+    d="M128 28
+       C104 43 82 48 66 52
+       V130
+       C66 156 80 185 128 210
+       C176 185 190 156 190 130
+       V52
+       C174 48 152 43 128 28Z"
+    stroke="#00F5FF"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+
+  <!-- Left angle bracket -->
+  <polyline
+    points="104,104 84,128 104,152"
+    fill="none"
+    stroke="#00F5FF"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Right angle bracket -->
+  <polyline
+    points="152,104 172,128 152,152"
+    fill="none"
+    stroke="#00F5FF"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Slash ( / ) -->
+  <line
+    x1="118"
+    y1="100"
+    x2="138"
+    y2="156"
+    stroke="#00F5FF"
+    stroke-width="10"
+    stroke-linecap="round"
+  />
+</svg>

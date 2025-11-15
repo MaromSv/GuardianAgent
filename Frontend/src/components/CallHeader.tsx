@@ -1,4 +1,4 @@
-import { Shield, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { GuardianAgentState } from "@/types/guardian";
 
 interface CallHeaderProps {
@@ -21,7 +21,12 @@ export function CallHeader({ state }: CallHeaderProps) {
     <header className="bg-card border-b border-border px-6 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Shield className="h-8 w-8 text-guardian-blue" />
+          {/* Custom Logo */}
+          <img 
+            src="/logo.svg" 
+            alt="Guardian Agent" 
+            className="h-10 w-10"
+          />
           <div>
             <h1 className="text-xl tracking-tight text-foreground">Guardian Agent</h1>
             <p className="text-sm text-muted-foreground">Call Monitoring</p>
@@ -32,7 +37,7 @@ export function CallHeader({ state }: CallHeaderProps) {
           {state?.call_sid && (
             <div className="text-right">
               <p className="text-sm text-muted-foreground">Call ID</p>
-              <p className="text-base text-foreground font-medium">{state.call_sid.slice(0, 12)}...</p>
+              <p className="text-sm text-foreground font-mono font-medium">{state.call_sid}</p>
             </div>
           )}
           

@@ -11,8 +11,7 @@ from datetime import datetime
 import traceback
 
 try:
-    from browser_use import Agent, Browser, Controller
-    from langchain_openai import ChatOpenAI
+    from browser_use import Agent, Browser, ChatBrowserUse
     BROWSER_USE_AVAILABLE = True
 except ImportError:
     BROWSER_USE_AVAILABLE = False
@@ -21,35 +20,43 @@ except ImportError:
 
 # Configurable reporting authorities
 AUTHORITIES = {
-    "ftc": {
-        "name": "Federal Trade Commission (FTC)",
-        "url": "https://reportfraud.ftc.gov/",
-        "country": "USA",
-        "description": "Reports phone scams to the US Federal Trade Commission",
-    },
-    "ic3": {
-        "name": "FBI Internet Crime Complaint Center (IC3)",
-        "url": "https://www.ic3.gov/Home/FileComplaint",
-        "country": "USA",
-        "description": "Reports to FBI for federal investigation",
-    },
-    "donotcall": {
+    # "ftc": {
+    #     "name": "Federal Trade Commission (FTC)",
+    #     "url": "https://reportfraud.ftc.gov/",
+    #     "country": "USA",
+    #     "description": "Reports phone scams to the US Federal Trade Commission",
+    # },
+    "authority": {
         "name": "National Do Not Call Registry",
         "url": "https://complaints.donotcall.gov/complaint/complaintcheck.aspx",
         "country": "USA",
         "description": "Reports unwanted/scam calls to FTC Do Not Call Registry",
     },
+    # "ic3": {
+    #     "name": "FBI Internet Crime Complaint Center (IC3)",
+    #     "url": "https://www.ic3.gov/Home/FileComplaint",
+    #     "country": "USA",
+    #     "description": "Reports to FBI for federal investigation",
+    # },
+    # "fraudehelpdesk": {
+    #     "name": "Dutch Fraud Help Desk (Fraudehelpdesk)",
+    #     "url": "https://www.fraudehelpdesk.nl/",
+    #     "country": "Netherlands",
+    #     "description": "Reports phone scams to the Dutch national anti-fraud hotline",
+    #     "phone": "+31 88 7867372",
+    #     "language": "Dutch (can use Google Translate)",
+    # },
 }
 
 
 def _get_authority_config(authority_name: str = None) -> Dict[str, Any]:
     """Get the reporting authority configuration."""
-    default_authority = os.getenv("SCAM_REPORT_AUTHORITY", "donotcall")
+    default_authority = os.getenv("SCAM_REPORT_AUTHORITY", "ftc")
     authority = authority_name or default_authority
     
     if authority not in AUTHORITIES:
-        print(f"Warning: Authority '{authority}' not found. Using 'donotcall' as fallback.")
-        authority = "donotcall"
+        print(f"Warning: Authority '{authority}' not found. Using 'ftc' as fallback.")
+        authority = "authority"
     
     return AUTHORITIES[authority]
 
@@ -59,62 +66,96 @@ def _build_reporting_task(
     user_number: str,
     analysis: Dict[str, Any],
     decision: Dict[str, Any],
+    reputation_check: Optional[Dict[str, Any]],
     fact_check: Optional[Dict[str, Any]],
     authority_config: Dict[str, Any],
 ) -> str:
-    """
-    Build the task prompt for the browser agent to report the scam.
-    """
-    risk_score = decision.get("risk_score", 0)
-    reason = decision.get("reason", "High risk detected")
-    scam_indicators = analysis.get("scam_indicators", [])
+    """Build the task prompt for the browser agent. Creates a natural description from GuardianState data."""
     
-    # Extract suspicious claims if fact-check was run
-    suspicious_claims = []
-    if fact_check:
-        suspicious_claims = [
-            claim.get("claim", "") 
-            for claim in fact_check.get("suspicious_claims", [])
-        ]
+    # Build natural, human-like description
+    reason = decision.get("reason", "")
+    indicators = analysis.get("scam_indicators", [])
     
-    # Build scam description
-    scam_description_parts = [f"Risk Score: {risk_score}%", reason]
-    if scam_indicators:
-        scam_description_parts.append(f"Indicators: {', '.join(scam_indicators)}")
-    if suspicious_claims:
-        scam_description_parts.append(f"Red Flags: {', '.join(suspicious_claims[:3])}")  # Top 3
+    description_parts = []
     
-    scam_description = " | ".join(scam_description_parts)
+    # Start with database match if applicable
+    if reputation_check and reputation_check.get("known_scam"):
+        description_parts.append("This number is a known scam.")
+    
+    # Add main issue in conversational language
+    if "bank" in reason.lower() or "impersonat" in reason.lower():
+        description_parts.append("The caller pretended to be from a legitimate organization and tried to get personal information.")
+    elif "password" in reason.lower():
+        description_parts.append("The caller tried to get passwords or login credentials.")
+    elif "urgency" in reason.lower():
+        description_parts.append("The caller used high-pressure tactics to create false urgency.")
+    
+    # Add specific behaviors
+    behaviors = []
+    for ind in indicators[:3]:
+        if "password" in ind.lower():
+            behaviors.append("asked for passwords")
+        elif "urgency" in ind.lower():
+            behaviors.append("created false urgency")
+        elif "account" in ind.lower():
+            behaviors.append("requested account numbers")
+    
+    if behaviors:
+        description_parts.append(f"They {', '.join(behaviors)}.")
+    
+    scam_description = " ".join(description_parts) or reason
+    
+    # Determine scam type
+    if reputation_check and reputation_check.get("scam_type"):
+        scam_type = reputation_check.get("scam_type")
+    elif any("bank" in ind.lower() for ind in indicators):
+        scam_type = "Banking Fraud"
+    else:
+        scam_type = "Phone Fraud / Impersonation Scam"
+    
+    # Add phone number to instructions if available
+    phone_info = f"\n- Phone contact: {authority_config['phone']}" if authority_config.get('phone') else ""
+    language_note = f" (Form may be in {authority_config.get('language', 'English')})" if authority_config.get('language') else ""
     
     task = f"""
-You are an automated assistant helping to report a confirmed phone scam to {authority_config['name']}.
+You are an automated assistant helping to report a confirmed phone scam to {authority_config['name']}.{language_note}
 
 GOAL
 - Navigate to: {authority_config['url']}
-- Fill out the scam reporting form with the details below
-- STOP BEFORE FINAL SUBMISSION (do not click "Submit" - we'll review first)
-- Summarize what was filled in and confirm the form is ready to submit
+- Fill out the scam reporting form with the details below{phone_info}
+- CRITICAL STOPPING POINT: After clicking "Continue" ONCE and reaching "STEP 2 OF 3", STOP IMMEDIATELY
+- DO NOT proceed to Step 3
+- DO NOT click any "Submit" or final submission buttons
+- Summarize what fields were filled and confirm you stopped at Step 2
 
 SCAM DETAILS
 - Scammer Phone Number: {caller_number}
 - Victim Phone Number: {user_number}
 - Date/Time of Call: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-- Scam Type: Phone Fraud / Impersonation Scam
+- Scam Type: {scam_type}
 - Description: {scam_description}
 - How was contact made: Phone call (inbound to victim)
 
 FORM FILLING INSTRUCTIONS
+- If the form is in Dutch, enable browser translation or work with Dutch text
+- Look for "Fraude melden" (Report Fraud) or similar buttons to access the report form
 - Accept cookies if prompted (minimal/necessary only)
-- Fill all required fields accurately
+- Fill all required fields accurately in Step 1
+- Click "Continue" ONCE to move to Step 2
+- Fill required fields in Step 2
+- When you see "STEP 2 OF 3" or similar text indicating Step 2, STOP IMMEDIATELY after filling Step 2 fields
+- DO NOT click "Continue" a second time
+- DO NOT proceed to Step 3 (which is typically the final submission/review step)
 - Use the scam details provided above
 - For any "victim information" fields, use the victim phone number
 - For any "additional details" or "description" fields, include the full scam description
 - If asked about monetary loss, indicate "No money lost (prevented by Guardian Agent)"
-- CRITICAL: Stop BEFORE clicking any "Submit" or "File Report" button
+- Common Dutch form fields: "Telefoonnummer" (phone number), "Omschrijving" (description), "Datum" (date)
 
 OUTPUT
-- Report what fields were filled
-- Confirm form is ready for submission
+- Confirm you have stopped at "STEP 2 OF 3"
+- Report what fields were filled in Step 1 and Step 2
+- Confirm you did NOT proceed to Step 3 or submit the form
 - Note any errors or missing required fields
 - Provide the current page URL
 """
@@ -127,6 +168,8 @@ async def report_scam_to_authorities(
     analysis: Dict[str, Any],
     decision: Dict[str, Any],
     fact_check: Optional[Dict[str, Any]] = None,
+    reputation_check: Optional[Dict[str, Any]] = None,
+    transcript: Optional[list] = None,
     authority: Optional[str] = None,
     headless: bool = True,
 ) -> Dict[str, Any]:
@@ -140,11 +183,18 @@ async def report_scam_to_authorities(
     Args:
         caller_number: The scammer's phone number
         user_number: The victim's phone number
-        analysis: Analysis results from assess_scam_probability
-        decision: Decision results from agent
-        fact_check: Optional fact-check results (for additional context)
-        authority: Which authority to report to (default from env or "donotcall")
-        headless: Whether to run browser in headless mode
+        analysis: Analysis results from assess_scam_probability node
+        decision: Decision results from agent's decision node
+        fact_check: Optional fact-check results (for additional red flags)
+        reputation_check: Optional phone reputation check (for scam type)
+        transcript: Optional call transcript (for context)
+        authority: Which authority to report to (default from env or "fraudehelpdesk")
+        headless: (Deprecated) Browser mode is controlled by HEADLESS env var
+        
+    Environment Variables:
+        BROWSERUSE_KEY or OPENAI_API_KEY: API key for browser automation
+        OPENAI_BASE_URL: Optional custom API endpoint
+        BROWSERUSE_MODEL: Optional model name (handled by ChatBrowserUse)
         
     Returns:
         Dict with:
@@ -152,7 +202,7 @@ async def report_scam_to_authorities(
         - authority: Name of reporting authority
         - message: Summary of what happened
         - form_data: What was filled in the form
-        - url: Final page URL
+        - browser_result: Result from browser agent
         - error: Error message if failed
     """
     if not BROWSER_USE_AVAILABLE:
@@ -186,30 +236,17 @@ async def report_scam_to_authorities(
             user_number=user_number,
             analysis=analysis,
             decision=decision,
+            reputation_check=reputation_check,
             fact_check=fact_check,
             authority_config=authority_config,
         )
         
-        # Initialize browser
-        browser = Browser(
-            config={
-                "headless": headless,
-                "disable_security": False,  # Keep security enabled
-            }
-        )
+        # Initialize browser (simpler API - headless controlled via environment)
+        browser = Browser()
         
-        # Initialize LLM (use OpenAI or compatible API)
-        api_key = os.getenv("BROWSERUSE_KEY") or os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("BROWSERUSE_KEY or OPENAI_API_KEY not set in .env")
-        
-        base_url = os.getenv("OPENAI_BASE_URL")
-        model = os.getenv("BROWSERUSE_MODEL", "gpt-4o")
-        
-        if base_url:
-            llm = ChatOpenAI(api_key=api_key, base_url=base_url, model=model)
-        else:
-            llm = ChatOpenAI(api_key=api_key, model=model)
+        # Initialize LLM (browser-use handles API key from environment automatically)
+        # It looks for BROWSERUSE_KEY or OPENAI_API_KEY automatically
+        llm = ChatBrowserUse()
         
         # Create and run agent
         agent = Agent(
@@ -259,12 +296,16 @@ def report_scam_to_authorities_sync(
     analysis: Dict[str, Any],
     decision: Dict[str, Any],
     fact_check: Optional[Dict[str, Any]] = None,
+    reputation_check: Optional[Dict[str, Any]] = None,
+    transcript: Optional[list] = None,
     authority: Optional[str] = None,
     headless: bool = True,
 ) -> Dict[str, Any]:
     """
     Synchronous wrapper for report_scam_to_authorities.
     Use this in agent.py nodes (which are synchronous).
+    
+    Automatically pulls data from your GuardianState and formats it for reporting.
     """
     try:
         # Run the async function in a new event loop
@@ -277,6 +318,8 @@ def report_scam_to_authorities_sync(
                 analysis=analysis,
                 decision=decision,
                 fact_check=fact_check,
+                reputation_check=reputation_check,
+                transcript=transcript,
                 authority=authority,
                 headless=headless,
             )
