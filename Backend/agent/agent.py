@@ -1,4 +1,3 @@
-# guardian_agent.py
 from __future__ import annotations
 
 from typing import TypedDict, Dict, Any, List, Optional
@@ -9,12 +8,11 @@ import os
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
-from .utils.check_phone_reputation import check_reputation
-from .utils.assess_scam_probability import analyze_transcript
-from .utils.agent_script import generate_guardian_message
-from .utils.tts import placeholder_text_to_speech
-from .utils.report_scam import add_scam_to_database
-from .logger import logger
+from utils.check_phone_reputation import check_reputation
+from utils.assess_scam_probability import analyze_transcript
+from utils.report_scam import add_scam_to_database
+from logger import logger
+from shared_state import shared_state  # Import the shared state
 
 
 class GuardianState(TypedDict, total=False):
@@ -53,10 +51,12 @@ class GuardianState(TypedDict, total=False):
 
     # Activity log for UI/debug
     activity: List[Dict[str, Any]]
-    
+
     # Current tool being used (for UI display)
     current_tool: str  # e.g., "phone_reputation_check", "transcript_analysis", "web_search", "decision_making", None
-    current_tool_description: str  # Human-readable description of what the tool is doing
+    current_tool_description: (
+        str  # Human-readable description of what the tool is doing
+    )
 
 
 def _log(state: GuardianState, stage: str, data: Dict[str, Any]) -> GuardianState:
@@ -151,8 +151,10 @@ class GuardianAgent:
         if "reputation_check" not in state:
             # Set current tool for UI
             state["current_tool"] = "phone_reputation_check"
-            state["current_tool_description"] = f"Checking phone number {caller_number} against scam database"
-            
+            state["current_tool_description"] = (
+                f"Checking phone number {caller_number} against scam database"
+            )
+
             rep = check_reputation(caller_number)
             state["reputation_check"] = rep
             _log(state, "check_reputation", rep)
@@ -170,19 +172,13 @@ class GuardianAgent:
         speaker = state.get("speaker") or "caller"
 
         if last_chunk:
-            state["transcript"].append(
-                {
-                    "speaker": speaker,
-                    "text": last_chunk,
-                }
-            )
+            shared_state["transcript"].append({"speaker": speaker, "text": last_chunk})
             _log(
                 state,
                 "update_transcript",
                 {"speaker": speaker, "text": last_chunk},
             )
 
-        # Decide if we should analyze now
         now = time.time()
         last_ts = state.get("last_analysis_ts", 0.0)
 
@@ -200,7 +196,7 @@ class GuardianAgent:
         # Set current tool for UI
         state["current_tool"] = "transcript_analysis"
         state["current_tool_description"] = "Analyzing conversation for scam indicators"
-        
+
         analysis_obj = analyze_transcript(state["transcript"])
         state["analysis"] = analysis_obj
         state.setdefault("analysis_history", []).append(
@@ -208,7 +204,7 @@ class GuardianAgent:
         )
         state["last_analysis_ts"] = time.time()
         _log(state, "analyze_transcript", analysis_obj)
-        
+
         return state
 
     def n_decide(self, state: GuardianState) -> GuardianState:
@@ -261,21 +257,21 @@ class GuardianAgent:
         # Set current tool for UI
         state["current_tool"] = "decision_making"
         state["current_tool_description"] = "Evaluating risk and deciding on action"
-        
+
         # For now, we never auto-stop the call
         state["decision"] = decision
         state["stop_call"] = False
         state["should_continue"] = True  # placeholder for future more complex loops
 
         _log(state, "decide_action", decision)
-        
+
         return state
 
     def n_process_scam(self, state: GuardianState) -> GuardianState:
         """
         Process a detected scam by adding the number to the local database.
         This runs when we are confident this is a scam (action == 'warn').
-        
+
         The number will be added to scam_numbers.json for future detection.
         """
         decision = state.get("decision") or {}
@@ -302,7 +298,7 @@ class GuardianAgent:
             phone_number=caller_number,
             risk_score=risk,
             analysis=analysis,
-            decision=decision
+            decision=decision,
         )
 
         scam_data = {
@@ -320,11 +316,13 @@ class GuardianAgent:
 
     def n_generate_utterance(self, state: GuardianState) -> GuardianState:
         """
-        Generate Guardian intervention message using AI.
-        Only runs if decision.action != "observe".
+        Mark that an utterance should be generated (text generation only).
+        TTS will be handled by the telephony service.
+        This node just marks the decision for the telephony service to act on.
         """
         decision = state.get("decision") or {}
         action = decision.get("action", "observe")
+
         if action == "observe":
             # No speech needed
             state["guardian_utterance_text"] = ""
@@ -335,38 +333,20 @@ class GuardianAgent:
             )
             return state
 
-        # Set current tool for UI
-        state["current_tool"] = "speech_generation"
-        state["current_tool_description"] = "Generating Guardian intervention message"
-        
-        text = generate_guardian_message(
-            state["transcript"],
-            state.get("analysis") or {},
+        # Update shared state to signal telephony service to generate speech
+        shared_state["decision"] = decision
+        shared_state["action"] = action
+
+        _log(
+            state,
+            "generate_utterance",
+            {
+                "msg": "Decision marked for telephony service",
+                "action": action,
+                "reason": decision.get("reason"),
+            },
         )
-        state["guardian_utterance_text"] = text
-        
-        # Add Guardian message to transcript so it appears as a normal chat bubble
-        state["transcript"].append({
-            "speaker": "guardian",
-            "text": text,
-        })
-        
-        _log(state, "generate_utterance", {"utterance": text})
-        
-        return state
 
-    def n_tts(self, state: GuardianState) -> GuardianState:
-        """
-        Convert GuardianAgent text into an audio URL (placeholder).
-        """
-        text = state.get("guardian_utterance_text") or ""
-        if not text:
-            state["guardian_utterance_audio_url"] = ""
-            return state
-
-        audio_url = placeholder_text_to_speech(text)
-        state["guardian_utterance_audio_url"] = audio_url
-        _log(state, "tts", {"audio_url": audio_url})
         return state
 
     def n_finalize(self, state: GuardianState) -> GuardianState:
@@ -384,11 +364,11 @@ class GuardianAgent:
             "scam_processed": state.get("scam_processed", False),
         }
         _log(state, "finalize_step", summary)
-        
+
         # Clear tool status after workflow completes
         state["current_tool"] = ""
         state["current_tool_description"] = ""
-        
+
         return state
 
     # ─────────────────────────── Graph wiring ─────────────────────────── #
@@ -403,7 +383,6 @@ class GuardianAgent:
         builder.add_node("decide", self.n_decide)
         builder.add_node("process_scam", self.n_process_scam)
         builder.add_node("generate_utterance", self.n_generate_utterance)
-        builder.add_node("tts", self.n_tts)
         builder.add_node("finalize", self.n_finalize)
 
         builder.add_edge(START, "init")
@@ -456,8 +435,7 @@ class GuardianAgent:
         # If we processed scam, we still want to speak (warn the user)
         builder.add_edge("process_scam", "generate_utterance")
 
-        builder.add_edge("generate_utterance", "tts")
-        builder.add_edge("tts", "finalize")
+        builder.add_edge("generate_utterance", "finalize")
         builder.add_edge("finalize", END)
 
         self.graph = builder.compile(checkpointer=self.memory)
@@ -476,20 +454,6 @@ class GuardianAgent:
     ) -> GuardianState:
         """
         Entry point for each transcript chunk.
-
-        In your Flask endpoint, you'd do something like:
-
-            agent = GuardianAgent()
-            state = agent.process_chunk(
-                call_sid=call_sid,
-                user_number=user_number,
-                caller_number=caller_number,
-                text=chunk_text,
-                speaker="caller",
-                thread_id=call_sid,
-            )
-
-        Then inspect `state["decision"]` and `state["guardian_utterance_audio_url"]`.
         """
         initial: GuardianState = {
             "call_sid": call_sid,
@@ -511,6 +475,7 @@ class GuardianAgent:
             },
         )
 
+        # Log the results
         msg = (
             f"Processed chunk for call_sid={call_sid}, "
             f"decision={result.get('decision')}, "
@@ -518,32 +483,3 @@ class GuardianAgent:
         )
         logger.log_agent_response("GuardianAgent", msg)
         return result
-
-
-# ────────────────────────────── Example usage ────────────────────────────── #
-
-if __name__ == "__main__":
-    # Example: simulate a call getting a few transcript chunks.
-    agent = GuardianAgent()
-
-    call_sid = "CA1234567890"
-    user_number = "+15550001111"
-    caller_number = "+155599999999"  # ends with 9999 -> high risk in placeholder
-
-    chunks = [
-        "Hello, I am calling from your bank.",
-        "We detected unusual activity and need your card number.",
-        "Please also confirm your password and social security number.",
-    ]
-
-    for chunk in chunks:
-        state = agent.process_chunk(
-            call_sid=call_sid,
-            user_number=user_number,
-            caller_number=caller_number,
-            text=chunk,
-            speaker="caller",
-            thread_id=call_sid,
-        )
-        # In a real backend, you'd now act on:
-        #   state["decision"], state["guardian_utterance_audio_url"], etc.
