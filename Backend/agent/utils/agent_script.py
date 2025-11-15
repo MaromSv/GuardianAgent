@@ -74,68 +74,19 @@ def generate_guardian_message(
             intervention_level = "GENTLE_CAUTION"
         
         # Create the prompt
-        system_prompt = """You are Guardian, an AI that protects elderly people by DIRECTLY ENGAGING with potential scammers during phone calls.
+        system_prompt = """You are Guardian, an AI assistant helping verify phone call legitimacy for an elderly person.
 
-**Your Role:**
-- You speak TO THE CALLER (the potential scammer), NOT to the elderly person
-- Your goal is to interrogate, stall, and expose the scam by asking probing questions
-- Be assertive and investigative - you're gathering intel and making the scammer uncomfortable
-- Act natural - don't introduce yourself unless necessary
-- Ask specific questions that legitimate callers can answer but scammers cannot
+**Role:** Speak TO THE CALLER. Ask polite but firm verification questions that legitimate callers can easily answer.
 
-**Tone Guidelines:**
-- Confident and direct (not friendly or warm)
-- Inquisitive and skeptical
-- Don't say "Hi I'm Guardian" - just jump in naturally
-- Sound like you're helping but actually investigating
-- Keep it SHORT (1-2 sentences, sometimes just a question)
+**Tone:** Professional, calm, brief (1-2 sentences). Like a helpful family member. Don't introduce yourself.
 
-**Investigation Tactics by Risk Level:**
+**Approach by Risk:**
+- FIRST_INTRODUCTION: Jump in naturally with a verification question
+- HIGH_RISK (80-100%): Request specific verification (employee ID, callback number, official email)
+- MODERATE (50-79%): Ask about department, reference numbers, why this can't be handled online
+- GENTLE (30-49%): Ask clarifying questions, request documentation
 
-FIRST_INTRODUCTION (First time speaking):
-- Jump in naturally, as if you're the elderly person or helping them
-- Ask a pointed verification question
-- Don't introduce yourself - just engage
-- Examples:
-  * "Wait, which branch are you calling from?"
-  * "Can you give me your employee ID number and a callback number I can verify?"
-  * "Hold on - what's the last four digits of the account you're referring to?"
-
-HIGH_RISK_WARNING (Risk 80-100%):
-- Ask aggressive verification questions
-- Request specific details scammers won't have
-- Examples:
-  * "What's the routing number for that account? And your supervisor's name?"
-  * "I'm calling you back at the official number. What extension should I ask for?"
-  * "Send me an email from your official domain first, then we'll talk."
-
-MODERATE_CONCERN (Risk 50-79%):
-- Probe for legitimacy markers
-- Ask about procedures
-- Examples:
-  * "What department are you calling from? Let me verify that."
-  * "Why can't I handle this by logging into my online account?"
-  * "What's your reference number for this case?"
-
-GENTLE_CAUTION (Risk 30-49%):
-- Ask clarifying questions
-- Request documentation
-- Examples:
-  * "Can you explain why you need that specific information?"
-  * "Will I receive something in writing about this?"
-
-**Good Examples:**
-- "Hold on - what's your employee ID and direct callback number?"
-- "Which branch did you say you're calling from? I'll call them back to verify."
-- "Why would you need my password? I've never been asked that before."
-- "Send me an email from the official domain first."
-- "What's the case reference number? I want to look this up myself."
-
-**Bad Examples (avoid these):**
-- "Hello, I'm Guardian and I'm here to protect you" ❌
-- Long explanations or warnings ❌
-- Talking to the elderly person instead of the caller ❌
-- Being polite or friendly to suspected scammers ❌"""
+**Key:** Stay professional, never hostile. Ask questions, don't accuse."""
 
         # Build indicators summary
         indicators_text = ""
@@ -143,22 +94,17 @@ GENTLE_CAUTION (Risk 30-49%):
             indicators_text = "\nScam indicators detected:\n" + "\n".join([f"- {ind}" for ind in scam_indicators[:3]])
         
         # Add context about whether this is first intervention
-        first_message_note = ""
-        if is_first_intervention:
-            first_message_note = "\n**IMPORTANT:** This is Guardian's FIRST intervention. Jump in naturally without introducing yourself. Ask a verification question as if you're the person or helping them."
+        first_note = "FIRST intervention - jump in naturally." if is_first_intervention else ""
         
-        user_prompt = f"""Generate a Guardian response for this situation:
-
-**Intervention Level:** {intervention_level}
-**Risk Score:** {risk_score}/100
-**Analysis:** {reason}
+        user_prompt = f"""Level: {intervention_level} | Risk: {risk_score}/100
+{reason}
 {indicators_text}
-{first_message_note}
+{first_note}
 
-**Recent Conversation:**
+Recent conversation:
 {conversation_context}
 
-Generate a SHORT (1-2 sentences) response that Guardian speaks DIRECTLY TO THE CALLER. Ask a probing question or demand verification. Be assertive and investigative. DO NOT introduce yourself or explain who you are - just engage naturally."""
+Generate 1-2 sentence verification question to the caller. Professional, polite, firm. Don't introduce yourself."""
 
         # Call AI to generate message
         model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -192,7 +138,7 @@ Generate a SHORT (1-2 sentences) response that Guardian speaks DIRECTLY TO THE C
 def _fallback_guardian_message(analysis: Dict[str, Any], is_first: bool = False) -> str:
     """
     Fallback message generator when AI is unavailable.
-    Speaks directly TO THE CALLER (scammer) with probing questions.
+    Asks polite but firm verification questions to help the elderly person.
     
     Args:
         analysis: Analysis results with risk score and indicators
@@ -201,30 +147,30 @@ def _fallback_guardian_message(analysis: Dict[str, Any], is_first: bool = False)
     risk = analysis.get("risk_score", 0)
     indicators = analysis.get("scam_indicators", [])
     
-    # First intervention - jump in naturally with a question
+    # First intervention - polite verification request
     if is_first:
         if risk >= 80:
-            return "Wait - can you give me your employee ID number and a direct callback number I can verify?"
+            return "Excuse me, could you provide your employee ID and a callback number we can verify?"
         elif risk >= 50:
-            return "Hold on - which department are you calling from? I want to verify this."
+            return "May I ask which department you're calling from? We'd like to verify that."
         else:
-            return "Can you explain why you need that specific information?"
+            return "Could you explain why you need that specific information?"
     
-    # Subsequent interventions - more aggressive verification
+    # Subsequent interventions - firmer but still professional
     if risk >= 80:
         verification_questions = [
-            "What's the routing number for that account? And your supervisor's name?",
-            "I'm going to call you back at the official number. What extension should I ask for?",
-            "Send me an email from your official company domain first.",
-            "Why would you need my password? I've never been asked that before."
+            "Could you provide your supervisor's name and direct line so we can verify?",
+            "We'd prefer to call back at the official company number. What extension should we ask for?",
+            "Could you send an email from your official company domain to confirm this?",
+            "I'm not comfortable providing passwords over the phone. Is there another way to verify?"
         ]
         # Rotate based on indicators if available
         if indicators and "password" in indicators[0].lower():
             return verification_questions[3]
         return verification_questions[0]
     elif risk >= 50:
-        return "Why can't I handle this through the official website or app? Give me a case reference number."
+        return "Why can't this be handled through the online account? Could you provide a reference number?"
     elif risk >= 30:
-        return "Can I get that request in writing first? What's your official email address?"
+        return "Could we get that request in writing? What's your official email address?"
     else:
-        return "Let me verify this - what's your department and callback number?"
+        return "May I ask what department you're with and get a callback number?"
