@@ -226,7 +226,9 @@ async def entrypoint(ctx: JobContext):
         save_shared_state()
         logger.info(f"💾 [{speaker.upper()}] {text[:60]}...")
 
-        if speaker == "caller":
+        # Trigger speaker identification for human messages
+        # (will use LLM to distinguish "user" vs "pottential_scammer")
+        if speaker == "user":
             asyncio.create_task(_identify_speaker_async())
 
     agent = Agent(
@@ -271,7 +273,8 @@ NEVER speak when action="observe".""",
 
         processed_transcripts.add(transcript_id)
         logger.info(f"🎤 [SPEECH] {text}")
-        _add_transcript(speaker="caller", text=text, interrupted=False)
+        # Use "role" instead of "speaker" - let check_speaker.py identify the actual speaker
+        _add_transcript(speaker="user", text=text, interrupted=False)
 
     # ===== CAPTURE AGENT RESPONSES & BACKUP USER MESSAGES =====
     @session.on("conversation_item_added")
@@ -293,12 +296,13 @@ NEVER speak when action="observe".""",
         recent_texts = [
             t.get("text", "")
             for t in shared_state.get("transcript", [])[-5:]
-            if t.get("speaker") in ["caller", "user"]
+            if t.get("speaker") in ["caller", "user", "pottential_scammer"]
         ]
 
         if text not in recent_texts:
             logger.info(f"👤 [USER-CONV] {text}")
-            _add_transcript(speaker="caller", text=text, interrupted=interrupted)
+            # Use "user" role - let check_speaker.py identify if it's caller or protected user
+            _add_transcript(speaker="user", text=text, interrupted=interrupted)
 
     @ctx.room.on("participant_disconnected")
     def _on_participant_disconnected(disconnected_participant):

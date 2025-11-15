@@ -1,5 +1,5 @@
 export interface TranscriptEntry {
-  speaker: "user" | "caller" | "guardian";
+  speaker: "user" | "potential_scammer" | "guardian";
   text: string;
 }
 

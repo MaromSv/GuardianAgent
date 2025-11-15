@@ -150,7 +150,7 @@ export function ConversationView({ state }: ConversationViewProps) {
           const speaker = entry.speaker;
           const isGuardian = speaker === "guardian";
           const isUser = speaker === "user";
-          const isCaller = speaker === "caller";
+          const isCaller = speaker === "potential_scammer";
           
           // Get current risk score for dynamic caller coloring
           const currentRisk = state?.analysis?.risk_score || state?.reputation_check?.risk_score || 0;
