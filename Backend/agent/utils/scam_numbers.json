@@ -786,5 +786,13 @@
   {
     "number": "+18656304266",
     "notes": "Detected scam (Risk: 90%). Only one neutral greeting spoken; no scam signals present yet, but also no context to confirm legitimacy. [Auto-detected: 2025-11-15]"
+  },
+  {
+    "number": "sip_+31657736820",
+    "notes": "Detected scam (Risk: 85%). Indicators: Impersonation of authority, Requests for sensitive information, Urgency/pressure tactics. [Auto-detected: 2025-11-15]"
+  },
+  {
+    "number": "sip_+31615869452",
+    "notes": "Detected scam (Risk: 85%). Indicators: impersonation of authority, requests for payment via wire transfer, too-good-to-be-true offers. [Auto-detected: 2025-11-15]"
   }
 ]

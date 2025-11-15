@@ -29,6 +29,7 @@ from agent.agent import GuardianAgent
 from utils.sms import send_family_alert_sms
 from shared_state import shared_state
 from agent import GuardianAgent
+from utils.report_to_authorities import report_scam_to_authorities
 
 load_dotenv()
 logger = logging.getLogger("telephony-agent")
@@ -137,12 +138,14 @@ async def on_call_hangup(ctx: JobContext, pipeline_task: asyncio.Task):
             except asyncio.CancelledError:
                 logger.info("✅ Guardian pipeline timer cancelled successfully")
 
-        # If the call was determined to be a scam, send SMS alert to family member
-        if shared_state.get("decision", {}).get("action") == "warn":
+        # If the call was determined to be a scam, send SMS alert to family member, and report to authorities
+        decision = shared_state.get("decision", {})
+        if decision.get("action") == "warn":
             family_number = "+31615869452"
             scam_details = shared_state.get("analysis", {}).get("reason", "")
-            risk = shared_state["decision"].get("risk_score", 0)
+            risk = decision.get("risk_score", 0)
 
+            # Send SMS alert
             send_family_alert_sms(
                 family_number=family_number,
                 user_number=shared_state["user_number"],
@@ -150,11 +153,24 @@ async def on_call_hangup(ctx: JobContext, pipeline_task: asyncio.Task):
                 risk_score=risk,
             )
 
+            # Report to authorities (MUST await since it's async)
+            logger.info("🚨 Reporting scam to authorities...")
+            from agent.utils.report_to_authorities import report_scam_to_authorities
+            
+            report_result = await report_scam_to_authorities(
+                caller_number=shared_state["caller_number"],
+                user_number=shared_state["user_number"],
+                transcript=shared_state.get("transcript", []),
+            )
+            
+            logger.info(f"📋 Authority report result: {report_result.get('status')}")
+            shared_state["authority_report"] = report_result
+            save_shared_state()
+
         logger.info(f"🏁 Hangup processing complete for call: {call_sid}")
 
     except Exception as e:
         logger.error(f"❌ Error during hangup processing: {e}", exc_info=True)
-
 
 async def entrypoint(ctx: JobContext):
     """Main entry point for the telephony voice agent."""

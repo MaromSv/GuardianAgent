@@ -2,281 +2,47 @@
   "raw_transcript": [
     {
       "speaker": "user",
-      "text": "Oh,",
+      "text": "Hello?",
       "interrupted": false,
-      "timestamp": "2025-11-15T16:18:03.691912Z"
-    },
-    {
-      "speaker": "user",
-      "text": "What's the other thing?",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:18:14.735735Z"
-    },
-    {
-      "speaker": "user",
-      "text": "Holy shit. Okay. Okay. Yo. What's good, brother?",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:18:21.975841Z"
-    },
-    {
-      "speaker": "user",
-      "text": "I have some money, please?",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:18:26.650851Z"
-    },
-    {
-      "speaker": "user",
-      "text": "We're like one we're both one eight.",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:18:34.949276Z"
-    },
-    {
-      "speaker": "user",
-      "text": "Filipino. Right?",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:18:35.017887Z"
+      "timestamp": "2025-11-15T19:22:05.554764Z"
     },
     {
       "speaker": "agent",
-      "text": "Caller, what company are you representing, and what is its official website?",
+      "text": "Warning: This call is from a known scam number with a high risk score of 95%. Please hang up immediately and do not engage with the caller.",
       "interrupted": false,
-      "timestamp": "2025-11-15T16:18:41.566091Z"
-    },
-    {
-      "speaker": "user",
-      "text": "I'm not representing any",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:18:48.488410Z"
-    },
-    {
-      "speaker": "user",
-      "text": "any company, man. I'm I'm I'm this guy's brother, and I'm asking him for some money. Alright?",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:18:49.861330Z"
-    },
-    {
-      "speaker": "user",
-      "text": "So back off.",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:18:50.860573Z"
-    },
-    {
-      "speaker": "user",
-      "text": "Buddy.",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:18:51.652263Z"
-    },
-    {
-      "speaker": "user",
-      "text": "I'm not representing any any company, man. I'm I'm I'm this guy's brother, and I'm asking him for some money. Alright? So back off. Buddy.",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:18:51.678315Z"
-    },
-    {
-      "speaker": "agent",
-      "text": "Caller, what publicly listed phone number can the user call back to reach you?",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:19:02.754844Z"
-    },
-    {
-      "speaker": "user",
-      "text": "There's I'm not I'm not a company, man.",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:19:07.564818Z"
-    },
-    {
-      "speaker": "agent",
-      "text": "Caller, if you're not representing a company, can you tell the user why you need money?",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:19:20.491654Z"
-    },
-    {
-      "speaker": "user",
-      "text": "Yeah. I just need some money because, like,",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:19:29.963494Z"
-    },
-    {
-      "speaker": "user",
-      "text": "I spent it all on ramen noodles the other day.",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:19:30.704332Z"
-    },
-    {
-      "speaker": "user",
-      "text": "Yeah. I just need some money because, like, I spent it all on ramen noodles the other day.",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:19:30.898649Z"
-    },
-    {
-      "speaker": "agent",
-      "text": "Caller, what is your full name and can you provide a way for the user to confirm your identity?",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:19:49.416603Z"
-    },
-    {
-      "speaker": "user",
-      "text": "No. No. And this is not",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:19:53.196430Z"
-    },
-    {
-      "speaker": "agent",
-      "text": "Caller, what reference number can the user confirm by checking their own records?",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:20:16.551045Z"
+      "timestamp": "2025-11-15T19:22:29.308543Z"
     }
   ],
   "transcript": [
     {
       "speaker": "user",
-      "text": "Oh,",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "pottential_scammer",
-      "text": "What's the other thing?",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "pottential_scammer",
-      "text": "Holy shit. Okay. Okay. Yo. What's good, brother?",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "user",
-      "text": "I have some money, please?",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "user",
-      "text": "We're like one we're both one eight.",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "user",
-      "text": "Filipino. Right?",
+      "text": "Hello?",
       "interrupted": false,
       "timestamp": ""
     },
     {
       "speaker": "agent",
-      "text": "Caller, what company are you representing, and what is its official website?",
+      "text": "Warning: This call is from a known scam number with a high risk score of 95%. Please hang up immediately and do not engage with the caller.",
       "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "user",
-      "text": "I'm not representing any",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "user",
-      "text": "any company, man. I'm I'm I'm this guy's brother, and I'm asking him for some money. Alright?",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "user",
-      "text": "So back off.",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "pottential_scammer",
-      "text": "Buddy.",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "pottential_scammer",
-      "text": "I'm not representing any any company, man. I'm I'm I'm this guy's brother, and I'm asking him for some money. Alright? So back off. Buddy.",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "agent",
-      "text": "Caller, what publicly listed phone number can the user call back to reach you?",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "pottential_scammer",
-      "text": "There's I'm not I'm not a company, man.",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "agent",
-      "text": "Caller, if you're not representing a company, can you tell the user why you need money?",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "pottential_scammer",
-      "text": "Yeah. I just need some money because, like,",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "user",
-      "text": "I spent it all on ramen noodles the other day.",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "user",
-      "text": "Yeah. I just need some money because, like, I spent it all on ramen noodles the other day.",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "agent",
-      "text": "Caller, what is your full name and can you provide a way for the user to confirm your identity?",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "user",
-      "text": "No. No. And this is not",
-      "interrupted": false,
-      "timestamp": ""
-    },
-    {
-      "speaker": "agent",
-      "text": "Caller, what reference number can the user confirm by checking their own records?",
-      "interrupted": false,
-      "timestamp": "2025-11-15T16:20:16.551045Z"
+      "timestamp": "2025-11-15T19:22:29.308543Z"
     }
   ],
   "analysis": {
-    "risk_score": 75.0,
-    "confidence": 0.85,
-    "reason": "The conversation displays multiple indicators of potential fraud, including requests for money without a clear legitimate reason, lack of identification, and refusal to provide a way to confirm identity. The casual tone and vague explanations raise red flags.",
-    "scam_indicators": [
-      "requests for sensitive information",
-      "impersonation of authority",
-      "requests for payment",
-      "inconsistencies in caller's story",
-      "pressure to make immediate decisions"
-    ],
-    "recommended_action": "warn",
+    "risk_score": 0.0,
+    "confidence": 1.0,
+    "reason": "The conversation is too brief to identify any scam indicators.",
+    "scam_indicators": [],
+    "recommended_action": "observe",
     "model": "gpt-4o-mini"
   },
   "decision": {
-    "action": "question",
-    "reason": "High risk=75% from conversation analysis. Phone reputation: 10%",
-    "risk_score": 75.0
+    "action": "warn",
+    "reason": "Known scam number detected (risk: 95%)",
+    "risk_score": 95.0
   },
-  "risk_score": 75.0,
-  "caller_number": "sip_+31657736820",
-  "user_number": "sip_+31657736820",
+  "risk_score": 95.0,
+  "caller_number": "sip_+31615869452",
+  "user_number": "sip_+31615869452",
   "call_sid": "Guardian Agent Room",
-  "action": "question"
+  "action": "warn"
 }

@@ -8,6 +8,7 @@ if backend_dir not in sys.path:
 
 import asyncio
 import logging
+import threading
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -133,18 +134,89 @@ async def on_call_hangup(ctx: JobContext, pipeline_task: asyncio.Task):
             except asyncio.CancelledError:
                 logger.info("✅ Guardian pipeline timer cancelled successfully")
 
-        # If scam detected, send SMS alert
-        if shared_state.get("decision", {}).get("action") == "warn":
+        # If scam detected, send SMS alert and report to authorities
+        decision = shared_state.get("decision", {})
+        if decision.get("action") == "warn":
             family_number = "+31615869452"
             scam_details = shared_state.get("analysis", {}).get("reason", "")
-            risk = shared_state["decision"].get("risk_score", 0)
+            risk = decision.get("risk_score", 0)
 
+            # Send SMS alert
             send_family_alert_sms(
                 family_number=family_number,
                 user_number=shared_state["user_number"],
                 scam_details=scam_details,
                 risk_score=risk,
             )
+
+            # Report to authorities in a separate thread (so LiveKit worker can shut down)
+            logger.info("🚨 Starting authority reporting thread...")
+            
+            def _report_in_thread():
+                """Run browser-use reporting in a separate thread with its own event loop."""
+                try:
+                    import time
+                    from agent.utils.report_to_authorities import report_scam_to_authorities
+                    
+                    # Give transcript/speaker ID a moment to settle
+                    time.sleep(5)
+                    
+                    # Clean phone numbers
+                    def clean_phone(phone_str: str) -> str:
+                        if not phone_str:
+                            return "0000000000"
+                        cleaned = (
+                            phone_str.replace("sip_", "")
+                            .replace("sip:", "")
+                            .replace("+", "")
+                            .replace("-", "")
+                            .replace(" ", "")
+                        )
+                        digits = "".join(c for c in cleaned if c.isdigit())
+                        if len(digits) >= 10:
+                            return digits[-10:]
+                        return digits or "0000000000"
+                    
+                    caller_clean = clean_phone(shared_state.get("caller_number", ""))
+                    user_clean = clean_phone(shared_state.get("user_number", ""))
+                    transcript = shared_state.get("transcript", [])
+                    
+                    logger.info(
+                        f"📋 Reporting (thread): caller={caller_clean}, user={user_clean}, "
+                        f"transcript_items={len(transcript)}"
+                    )
+                    
+                    # Create a new event loop for this thread
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    report_result = loop.run_until_complete(
+                        report_scam_to_authorities(
+                            caller_number='8656304266',
+                            user_number='4697097630',
+                            transcript=transcript,
+                        )
+                    )
+                    loop.close()
+                    
+                    logger.info(
+                        f"📋 Authority report completed: {report_result.get('status')}"
+                    )
+                    shared_state["authority_report"] = report_result
+                    save_shared_state()
+                    
+                except Exception as e:
+                    logger.error(f"❌ Authority reporting thread failed: {e}", exc_info=True)
+                    shared_state["authority_report"] = {
+                        "status": "failed",
+                        "error": str(e),
+                    }
+                    save_shared_state()
+            
+            # Start reporting in a daemon thread (won't block process shutdown)
+            reporting_thread = threading.Thread(target=_report_in_thread, daemon=True)
+            reporting_thread.start()
+            logger.info("🚀 Authority reporting thread started (running in background)")
 
         logger.info(f"🏁 Hangup processing complete for call: {call_sid}")
 
