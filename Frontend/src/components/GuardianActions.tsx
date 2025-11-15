@@ -37,7 +37,7 @@ const toolInfo: Record<string, { icon: typeof Shield; label: string; color: stri
 
 export function GuardianActions({ state }: GuardianActionsProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  
+
   // Simplified: Look for most recent tool in activity log
   let toolDisplay = null;
   let toolDescription = "";

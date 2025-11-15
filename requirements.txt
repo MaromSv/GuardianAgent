@@ -8,3 +8,5 @@ openai
 pydantic
 browser-use
 langchain-openai
+playwright
+# "livekit-agents[deepgram,openai,cartesia,silero,elevenlabs,turn-detector]~=1.0" "livekit-plugins-noise-cancellation~=0.2" "python-dotenv"

@@ -8,11 +8,11 @@ import os
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
-from utils.check_phone_reputation import check_reputation
-from utils.assess_scam_probability import analyze_transcript
-from utils.report_scam import add_scam_to_database
-from logger import logger
-from shared_state import shared_state
+from agent.utils.check_phone_reputation import check_reputation
+from agent.utils.assess_scam_probability import analyze_transcript
+from agent.utils.report_scam import add_scam_to_database
+from agent.logger import logger
+from agent.shared_state import shared_state, save_shared_state
 
 
 class GuardianState(TypedDict, total=False):
@@ -136,17 +136,18 @@ class GuardianAgent:
 
     def n_update_transcript(self, state: GuardianState) -> GuardianState:
         """
-        Read transcript from shared_state and convert format.
+        Read raw transcript from shared_state and convert format.
         The telephony agent uses 'role', but analysis expects 'speaker'.
         """
-        # Get transcript from shared_state (telephony_agent updates this)
-        raw_transcript = shared_state.get("transcript", [])
+        # Get raw transcript from shared_state (telephony_agent updates this)
+        raw_transcript = shared_state.get("raw_transcript") or shared_state.get("transcript", [])
 
-        # Convert format: 'role' -> 'speaker', keep 'text'
+        # Convert format: support both {'role', 'text'} and already-processed {'speaker', 'text'}
         converted_transcript = []
         for entry in raw_transcript:
+            speaker = entry.get("speaker") or entry.get("role", "unknown")
             converted_transcript.append(
-                {"speaker": entry.get("role", "unknown"), "text": entry.get("text", "")}
+                {"speaker": speaker, "text": entry.get("text", "")}
             )
 
         state["transcript"] = converted_transcript
@@ -155,6 +156,44 @@ class GuardianAgent:
         state["should_analyze_now"] = True
         state["last_analysis_ts"] = time.time()
 
+        return state
+
+    def n_identify_speakers(self, state: GuardianState) -> GuardianState:
+        """
+        Identify speakers in transcript (distinguishing user vs caller).
+        Uses LLM to analyze conversation context and properly label speakers.
+        Only processes entries that need identification.
+        """
+        from agent.utils.check_speaker import identify_speakers, needs_speaker_identification
+        
+        transcript = state.get("transcript", [])
+        
+        # Skip if no identification needed
+        if not transcript or not needs_speaker_identification(transcript):
+            return state
+        
+        # Set current tool for UI
+        state["current_tool"] = "speaker_identification"
+        state["current_tool_description"] = "Identifying speakers in conversation"
+        
+        # Identify speakers (distinguishes user vs caller)
+        updated_transcript = identify_speakers(
+            transcript=transcript,
+            user_number=state.get("user_number"),
+            caller_number=state.get("caller_number"),
+        )
+        
+        state["transcript"] = updated_transcript
+
+        _log(
+            state,
+            "identify_speakers",
+            {
+                "msg": "Speaker identification complete",
+                "transcript_length": len(updated_transcript),
+            },
+        )
+        
         return state
 
     def n_analyze(self, state: GuardianState) -> GuardianState:
@@ -304,6 +343,7 @@ class GuardianAgent:
         builder.add_node("init", self.n_init)
         builder.add_node("check_reputation", self.n_check_reputation)
         builder.add_node("update_transcript", self.n_update_transcript)
+        builder.add_node("identify_speakers", self.n_identify_speakers)
         builder.add_node("analyze", self.n_analyze)
         builder.add_node("decide", self.n_decide)
         builder.add_node("process_scam", self.n_process_scam)
@@ -313,17 +353,18 @@ class GuardianAgent:
         builder.add_edge(START, "init")
         builder.add_edge("init", "check_reputation")
         builder.add_edge("check_reputation", "update_transcript")
+        builder.add_edge("update_transcript", "identify_speakers")
 
-        # After updating transcript, decide if we should analyze or just finalize
-        def branch_after_update(state: GuardianState):
+        # After speaker identification, decide if we should analyze or just finalize
+        def branch_after_identify(state: GuardianState):
             if state.get("should_analyze_now", False):
                 return "analyze"
             else:
                 return "skip_analysis"
 
         builder.add_conditional_edges(
-            "update_transcript",
-            branch_after_update,
+            "identify_speakers",  # Changed from "update_transcript"
+            branch_after_identify,
             {
                 "analyze": "analyze",
                 "skip_analysis": "finalize",

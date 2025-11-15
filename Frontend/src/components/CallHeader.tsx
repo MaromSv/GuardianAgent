@@ -21,15 +21,15 @@ export function CallHeader({ state }: CallHeaderProps) {
     <header className="bg-card border-b border-border px-6 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* Custom Logo */}
+          {/* Logo on the left */}
           <img 
-            src="/logo.svg" 
+            src="/logo_notext.png" 
             alt="Guardian Agent" 
-            className="h-10 w-10"
+            className="h-10 w-auto"
           />
-          <div>
-            <h1 className="text-xl tracking-tight text-foreground">Guardian Agent</h1>
-            <p className="text-sm text-muted-foreground">Call Monitoring</p>
+          <div className="flex flex-col justify-center">
+            <h1 className="text-xl tracking-tight text-foreground font-medium leading-tight">Guardian Agent</h1>
+            <p className="text-sm text-muted-foreground leading-tight">Call Monitoring</p>
           </div>
         </div>
         

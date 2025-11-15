@@ -46,7 +46,7 @@ export function RiskSummary({ state }: RiskSummaryProps) {
 
   return (
     <div className="bg-card rounded-lg border border-border p-6">
-      <h3 className="text-lg tracking-tight text-foreground mb-4">Risk Summary</h3>
+      <h3 className="text-lg tracking-tight text-foreground mb-4">Risk</h3>
       
       <div className={`${config.bg} rounded-lg p-4 mb-4`}>
         <div className="flex items-center gap-3 mb-2">

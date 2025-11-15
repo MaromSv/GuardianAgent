@@ -1,4 +1,3 @@
-import { useParams } from "react-router-dom";
 import { useGuardianAgentState } from "@/hooks/useGuardianAgentState";
 import { CallHeader } from "@/components/CallHeader";
 import { ConversationView } from "@/components/ConversationView";
@@ -8,8 +7,8 @@ import { ActivityLog } from "@/components/ActivityLog";
 import { Loader2 } from "lucide-react";
 
 const CallMonitor = () => {
-  const { call_sid } = useParams<{ call_sid: string }>();
-  const { state, isLoading, error } = useGuardianAgentState(call_sid);
+  // For demo, we don't need call_sid from URL - just fetch the global state
+  const { state, isLoading, error } = useGuardianAgentState(undefined);
 
   if (isLoading && !state) {
     return (

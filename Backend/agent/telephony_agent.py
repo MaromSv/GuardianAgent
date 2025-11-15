@@ -1,3 +1,11 @@
+import sys
+import os
+
+# Fix import path when running directly - MUST BE FIRST!
+backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 import asyncio
 import logging
 from datetime import datetime
@@ -15,8 +23,8 @@ from livekit.agents import (
 )
 from livekit.plugins import deepgram, openai, cartesia, silero, elevenlabs
 
-from shared_state import shared_state
-from agent import GuardianAgent
+from agent.shared_state import shared_state, save_shared_state
+from agent.agent import GuardianAgent
 
 load_dotenv()
 logger = logging.getLogger("telephony-agent")
@@ -77,8 +85,21 @@ async def guardian_pipeline_timer(ctx: JobContext):
                 thread_id=call_sid,
             )
 
+            # Update shared_state with latest processed state for UI
+            decision = result.get("decision", {}) or {}
+            analysis = result.get("analysis", {}) or {}
+            processed_transcript = result.get("transcript") or []
+
+            shared_state["analysis"] = analysis
+            shared_state["decision"] = decision
+            shared_state["risk_score"] = float(decision.get("risk_score", 0.0))
+            # This transcript has already gone through n_identify_speakers
+            shared_state["transcript"] = processed_transcript
+
+            # Persist to disk so Flask can serve it
+            save_shared_state()
+
             # Log summary only
-            decision = result.get("decision", {})
             logger.info(
                 f"✅ Pipeline complete - Action: {decision.get('action', 'none')}, "
                 f"Risk: {decision.get('risk_score', 0):.1f}%, "
@@ -128,14 +149,17 @@ async def entrypoint(ctx: JobContext):
     participant = await ctx.wait_for_participant()
     logger.info(f"📞 Phone call connected from: {participant.identity}")
 
-    # Initialize shared_state
-    if "transcript" not in shared_state:
-        shared_state["transcript"] = []
+    # Initialize shared_state containers for this call
+    shared_state["raw_transcript"] = []
+    shared_state["transcript"] = []  # will be filled by GuardianAgent after speaker ID
 
     # Set call metadata
     shared_state["caller_number"] = participant.identity
     shared_state["user_number"] = ctx.room.name
     shared_state["call_sid"] = ctx.room.name
+
+    # Persist initial state so Flask can see the active call
+    save_shared_state()
 
     logger.info(f"🔧 Initialized shared_state for call: {ctx.room.name}")
 
@@ -212,7 +236,8 @@ Remember: Only speak when the analysis tells you to, and say NOTHING at all when
                 "interrupted": False,
                 "timestamp": datetime.utcnow().isoformat() + "Z",
             }
-            shared_state["transcript"].append(chunk)
+            # Raw transcript is kept separate; UI will only see processed transcript
+            shared_state.setdefault("raw_transcript", []).append(chunk)
 
     # ---- FINAL MESSAGES FOR BOTH USER + ASSISTANT ----
     @session.on("conversation_item_added")
@@ -229,7 +254,8 @@ Remember: Only speak when the analysis tells you to, and say NOTHING at all when
             "interrupted": interrupted,
             "timestamp": datetime.utcnow().isoformat() + "Z",
         }
-        shared_state["transcript"].append(chunk)
+        # Raw transcript is kept separate; UI will only see processed transcript
+        shared_state.setdefault("raw_transcript", []).append(chunk)
 
     @ctx.room.on("participant_disconnected")
     def _on_participant_disconnected(disconnected_participant):

@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 from agent.agent import GuardianAgent
+from agent.shared_state import get_shared_state
 
 # Load environment variables from .env file
 load_dotenv()
@@ -62,38 +63,49 @@ def handle_transcript(call_sid):
     )
 
 
-# Endpoint to fetch the current state of a call
-@app.route("/calls/<call_sid>/state", methods=["GET"])
-def get_call_state(call_sid):
+# Endpoint to get the currently active call
+@app.route("/calls/active", methods=["GET"])
+def get_active_call():
     """
-    Return the entire agent state for debugging.
+    Returns the active call SID.
+    
+    Note: This is a simplified version that just returns the known LiveKit room name.
+    In production, you'd want to use a persistent checkpoint store (SQLite, Redis, etc.)
+    so both Flask and telephony_agent can share state.
+    
+    For now, we just return the hardcoded room name and let the frontend try to fetch it.
     """
-    # Get the saved state using the config format
-    checkpoint = agent.graph.get_state(
-        config={
-            "configurable": {
-                "thread_id": call_sid,
-            }
-        }
-    )
+    # LiveKit always uses "Guardian Agent Room" as the room name
+    # The frontend will try to fetch /calls/Guardian%20Agent%20Room/state
+    # If there's no data, it'll just show empty/loading
+    call_sid = "Guardian Agent Room"
     
-    # Extract values from checkpoint (checkpoint is a tuple/list, values are at index 0)
-    # Or use checkpoint.values if it's a Checkpoint object
-    if checkpoint is None:
-        return jsonify({"state": {"values": None}})
-    
-    # Handle tuple/list checkpoint structure
-    if isinstance(checkpoint, (list, tuple)) and len(checkpoint) > 0:
-        values = checkpoint[0]
-    elif hasattr(checkpoint, 'values'):
-        values = checkpoint.values
-    else:
-        values = checkpoint
+    return jsonify({
+        "call_sid": call_sid,
+        "status": "active",
+        "user_number": None,
+        "caller_number": None,
+    })
 
+
+# Endpoint to fetch the current state of a call
+@app.route("/calls/state", methods=["GET"])
+def get_call_state():
+    """
+    Return the entire agent state from shared_state.
+    For demo purposes, we just return the global shared_state.
+    """
+    # Get the shared state (this is shared between Flask and telephony_agent in the same process)
+    state_dict = get_shared_state()
+    
+    print(f"[DEBUG] GET /calls/state - shared_state contains: {list(state_dict.keys())}")
+    print(f"[DEBUG] Transcript length: {len(state_dict.get('transcript', []))}")
+    
+    # Return in the format the frontend expects: {"state": {"values": {...}}}
     return jsonify(
         {
             "state": {
-                "values": values,
+                "values": state_dict
             }
         }
     )
