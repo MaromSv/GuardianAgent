@@ -28,7 +28,10 @@ It can stop scams in real time, step in to question suspicious callers, automati
 - **Demo frontend** for visualizing ongoing calls, risk levels, transcripts, and agent decisions (E2E encrypted by default; intended for demonstration and debugging).
 
 ## Architecture Overview
-
+<p align="center">
+  <img src="./architecture_diagram.png" width="600"/>
+</p>
+When a call comes in from an unknown number, Guardian Agent first checks it against our scam-number database. If it’s already flagged, the system immediately treats the call as a scam and handles it automatically. If not, Guardian Agent switches into real-time monitoring mode, using Deepgram for speech-to-text, ElevenLabs for text-to-speech, and an OpenAI-powered reasoning layer to analyze the conversation. Every 10 seconds, the pipeline reviews the updated transcript and recalculates a risk score. If that score reaches the 70–85% range, the agent can step in and challenge the caller with targeted questions to gather more evidence. When the risk exceeds 85%, Guardian Agent concludes the call is a scam: it alerts the user continuously until they hang up, sends an SMS to designated family members and reports the number on the offical scam reporting website to protect others in the future.
 
 
 
@@ -91,12 +94,14 @@ If you want to automatically add the Guardian Agent to incomming unknown phone c
 Now when an unknown phone number calls you, Guardian Agent will join the call and watch over you.
 
 
-## Roadmap and team
+## Roadmap/ Future improvements
 
-### Future improvements
+- **Advanced LLM fine-tuning for scam detection:**  
+  Further train domain-specific models to improve accuracy, consistency, and sensitivity to emerging scam patterns.
 
+- **Additional ML-based detection techniques:**  
+  Incorporate classical machine-learning and anomaly-detection methods to complement LLM reasoning and strengthen multi-signal risk scoring.
 
-### Team
+- **Real-time caller intelligence:**  
+  Add the ability to research the caller during the call—gathering public information, reputation data, and past reports to enrich context.
 
-
-## Licence
