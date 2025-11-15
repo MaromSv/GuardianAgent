@@ -72,6 +72,34 @@ async def guardian_pipeline_timer(ctx: JobContext):
         logger.error(f"❌ Error in guardian pipeline: {e}", exc_info=True)
 
 
+async def on_call_hangup(ctx: JobContext, pipeline_task: asyncio.Task):
+    """
+    Handle cleanup and final processing when a call is disconnected.
+
+    Args:
+        ctx: JobContext containing room and call information
+        pipeline_task: The background guardian pipeline task to cancel
+    """
+    call_sid = ctx.room.name
+    logger.info(f"📴 Call disconnected: {call_sid}")
+
+    try:
+        # Cancel the guardian pipeline timer
+        if pipeline_task and not pipeline_task.done():
+            pipeline_task.cancel()
+            try:
+                await pipeline_task
+            except asyncio.CancelledError:
+                logger.info("✅ Guardian pipeline timer cancelled successfully")
+
+        # TODO: Add final processing steps here...
+
+        logger.info(f"🏁 Hangup processing complete for call: {call_sid}")
+
+    except Exception as e:
+        logger.error(f"❌ Error during hangup processing: {e}", exc_info=True)
+
+
 async def entrypoint(ctx: JobContext):
     """Main entry point for the telephony voice agent."""
     await ctx.connect()
@@ -123,6 +151,7 @@ Remember: Only speak when the analysis tells you to!""",
     )
 
     session = AgentSession(
+        allow_interruptions=False,
         vad=silero.VAD.load(),
         stt=deepgram.STT(
             model="nova-3",
@@ -169,7 +198,7 @@ Remember: Only speak when the analysis tells you to!""",
         text = ev.item.text_content or ""
         interrupted = ev.item.interrupted
 
-        logger.info(f"[{role.upper()}] {text[:100]}{'...' if len(text) > 100 else ''}")
+        logger.info(f"[{role.upper()}] {text}")
 
         chunk = {
             "role": role,
@@ -178,6 +207,17 @@ Remember: Only speak when the analysis tells you to!""",
             "timestamp": datetime.utcnow().isoformat() + "Z",
         }
         shared_state["transcript"].append(chunk)
+
+    @ctx.room.on("participant_disconnected")
+    def _on_participant_disconnected(disconnected_participant):
+        logger.info(
+            f"👋 participant_disconnected event: {disconnected_participant.identity}"
+        )
+
+        if disconnected_participant.identity == participant.identity:
+            logger.info("📵 Caller hung up, running hangup logic...")
+            asyncio.create_task(on_call_hangup(ctx, pipeline_task))
+            ctx.shutdown(reason="caller_hangup")
 
     # Start the agent session
     await session.start(agent=agent, room=ctx.room)
