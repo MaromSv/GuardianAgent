@@ -26,9 +26,22 @@ guardian_agent = GuardianAgent()
 
 
 @function_tool
-async def get_current_state() -> str:
-    """Get the current state of the shared_state dictionary."""
-    return str(shared_state)
+async def get_current_state() -> dict:
+    """Get the current guardian decision about whether you should speak.
+
+    Returns a dict like:
+    {
+      "action": "observe" | "question" | "warn",
+      "reason": "...",
+      "risk_score": 0-100
+    }
+    """
+    decision = shared_state.get("decision", {}) or {}
+    return {
+        "action": decision.get("action", "observe"),
+        "reason": decision.get("reason", "No analysis yet"),
+        "risk_score": float(decision.get("risk_score", 0.0)),
+    }
 
 
 async def guardian_pipeline_timer(ctx: JobContext):
@@ -44,6 +57,13 @@ async def guardian_pipeline_timer(ctx: JobContext):
             if not shared_state.get("transcript"):
                 logger.info("⏭️  No transcript data yet, skipping analysis")
                 continue
+
+            # Ensure it starts off non suspecting
+            shared_state["decision"] = {
+                "action": "observe",
+                "reason": "No analysis yet",
+                "risk_score": 0.0,
+            }
 
             logger.info("🔍 Running Guardian pipeline analysis...")
 
@@ -126,27 +146,26 @@ async def entrypoint(ctx: JobContext):
         instructions="""You are a vigilant Guardian AI assistant dedicated to protecting users from scam calls.
 
 CRITICAL RULES:
-1. ALWAYS call get_current_state() BEFORE deciding whether to speak
-2. Check shared_state['decision']['action'] to determine your action:
-   - "observe" = DO NOT SPEAK, remain silent
-   - "question" = Ask the pottential scammer a direct question to verify their legitimacy
-   - "warn" = Strongly warn the user this appears to be a scam/hang up
-3. Check shared_state['risk_score'] to understand the threat level
-4. ONLY speak if action is "question" or "warn"
+1. ALWAYS call get_current_state() BEFORE responding.
+2. Read the "action" field from get_current_state():
+   - "observe" = DO NOT SPEAK, return an empty string as your reply.
+   - "question" = Ask the potential scammer a direct question to verify their legitimacy.
+   - "warn" = Strongly warn the user this appears to be a scam and tell them to hang up.
+3. Use "risk_score" and "reason" from get_current_state() to shape how strong your warning is.
+4. NEVER speak if action == "observe". Your reply must be completely empty in that case.
 
 When you do speak (question/warn):
 - Be direct, clear, and authoritative
-- Reference specific scam indicators from shared_state['analysis']['scam_indicators']
-- Keep warnings brief but impactful
+- Keep it short (1–2 sentences)
 - Prioritize user safety above all
 
 Example question (action="question"):
 "QUESTION: To verify your identity, can you please provide the official account number associated with your Microsoft support case?"
 
 Example warning (action="warn"):
-"WARNING: This appears to be a scam call. The caller is using common fraud tactics including [specific indicators]. I recommend hanging up immediately."
+"WARNING: This appears to be a scam call. The caller is using common fraud tactics. I recommend hanging up immediately."
 
-Remember: Only speak when the analysis tells you to!""",
+Remember: Only speak when the analysis tells you to, and say NOTHING at all when action is "observe".""",
         tools=[get_current_state],
     )
 
@@ -163,7 +182,11 @@ Remember: Only speak when the analysis tells you to!""",
             endpointing_ms=25,
             sample_rate=16000,
         ),
-        llm=openai.LLM(model="gpt-4o-mini", temperature=0.7),
+        llm=openai.LLM(
+            model="gpt-4o-mini",
+            temperature=0.7,
+            tool_choice="required",
+        ),
         # tts=cartesia.TTS(
         #     model="sonic-2",
         #     voice="a0e99841-438c-4a64-b679-ae501e7d6091",
