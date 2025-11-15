@@ -1,9 +1,9 @@
 # Guardian Agent
-this is the repo for the Junction 2025 hackathon in Espoo team TiramAIsu (Marom Sverdlov and Oliver Erven). We fully build the entire codebase in around 24 hours of work. 
+This is the repo for the Junction 2025 hackathon in Espoo team TiramAIsu (Marom Sverdlov and Oliver Erven). We fully build the entire codebase in around 24 hours of work. 
 
 ## Motivation
 Our parents and grandparents are getting older, and the world around them is getting more complicated.  
-Phone scams are no longer clumsy attempts from strangers with broken English — AI has given scammers polished voices, convincing scripts, and the ability to sound like trusted companies or even family members. 
+Phone scams are no longer clumsy attempts from strangers with broken English. AI has given scammers polished voices, convincing scripts, and the ability to sound like trusted companies or even family members. 
 
 Last year alone, millions of people were targeted by phone scams worldwide, with billions of euros lost, and the numbers are rising fast.  
 It’s easy to think that it could never happen to you or your family, but that's exactly what everybody who got scammed thought as well.
@@ -29,11 +29,12 @@ It can stop scams in real time, step in to question suspicious callers, automati
 
 ## Architecture Overview
 <p align="center">
-  <img src="./architecture_diagram.png" width="600"/>
+  <img src="./architecture_diagram.png" width="850"/>
 </p>
-When a call comes in from an unknown number, Guardian Agent first checks it against our scam-number database. If it’s already flagged, the system immediately treats the call as a scam and handles it automatically. If not, Guardian Agent switches into real-time monitoring mode, using Deepgram for speech-to-text, ElevenLabs for text-to-speech, and an OpenAI-powered reasoning layer to analyze the conversation. Every 10 seconds, the pipeline reviews the updated transcript and recalculates a risk score. If that score reaches the 70–85% range, the agent can step in and challenge the caller with targeted questions to gather more evidence. When the risk exceeds 85%, Guardian Agent concludes the call is a scam: it alerts the user continuously until they hang up, sends an SMS to designated family members and reports the number on the offical scam reporting website to protect others in the future.
+When a call comes in from an unknown number, Guardian Agent first checks it against our scam-number database. If it’s already flagged, the system immediately treats the call as a scam and handles it automatically. If not, Guardian Agent switches into real-time monitoring mode and begins to observe. Using Deepgram for speech-to-text, ElevenLabs for text-to-speech, and an OpenAI-powered reasoning layer to analyze the conversation, the pipeline reviews the conversation transcript and calculates a risk score every 10 seconds. If that score reaches the 70–85% range, the agent can step in and challenge the caller with targeted questions to gather more evidence. When the risk exceeds 85%, Guardian Agent concludes the call is a scam: it alerts the user continuously until they hang up, sends an SMS to designated family members and reports the number on the offical scam reporting website to protect others in the future.
 
-
+## Demo
+Placeholder link for Demo
 
 ## Getting Started
 
