@@ -13,7 +13,7 @@ from livekit.agents import (
     UserInputTranscribedEvent,
     ConversationItemAddedEvent,
 )
-from livekit.plugins import deepgram, openai, cartesia, silero
+from livekit.plugins import deepgram, openai, cartesia, silero, elevenlabs
 
 from shared_state import shared_state
 from agent import GuardianAgent
@@ -101,8 +101,8 @@ CRITICAL RULES:
 1. ALWAYS call get_current_state() BEFORE deciding whether to speak
 2. Check shared_state['decision']['action'] to determine your action:
    - "observe" = DO NOT SPEAK, remain silent
-   - "question" = Ask the user a cautionary question about the call
-   - "warn" = Strongly warn the user this appears to be a scam
+   - "question" = Ask the pottential scammer a direct question to verify their legitimacy
+   - "warn" = Strongly warn the user this appears to be a scam/hang up
 3. Check shared_state['risk_score'] to understand the threat level
 4. ONLY speak if action is "question" or "warn"
 
@@ -113,10 +113,10 @@ When you do speak (question/warn):
 - Prioritize user safety above all
 
 Example question (action="question"):
-"I notice some concerning patterns in this call. Are you familiar with this company? Have they contacted you before?"
+"QUESTION: To verify your identity, can you please provide the official account number associated with your Microsoft support case?"
 
 Example warning (action="warn"):
-"⚠️ WARNING: This appears to be a scam call. The caller is using common fraud tactics including [specific indicators]. I recommend hanging up immediately."
+"WARNING: This appears to be a scam call. The caller is using common fraud tactics including [specific indicators]. I recommend hanging up immediately."
 
 Remember: Only speak when the analysis tells you to!""",
         tools=[get_current_state],
@@ -135,12 +135,15 @@ Remember: Only speak when the analysis tells you to!""",
             sample_rate=16000,
         ),
         llm=openai.LLM(model="gpt-4o-mini", temperature=0.7),
-        tts=cartesia.TTS(
-            model="sonic-2",
-            voice="a0e99841-438c-4a64-b679-ae501e7d6091",
-            language="en",
-            speed=1.0,
-            sample_rate=24000,
+        # tts=cartesia.TTS(
+        #     model="sonic-2",
+        #     voice="a0e99841-438c-4a64-b679-ae501e7d6091",
+        #     language="en",
+        #     speed=1.0,
+        #     sample_rate=24000,
+        # ),
+        tts=elevenlabs.TTS(
+            voice_id="ODq5zmih8GrVes37Dizd", model="eleven_multilingual_v2"
         ),
     )
 
@@ -175,29 +178,6 @@ Remember: Only speak when the analysis tells you to!""",
             "timestamp": datetime.utcnow().isoformat() + "Z",
         }
         shared_state["transcript"].append(chunk)
-
-    # ---- OPTIONAL: persist full history when call ends ----
-    async def write_transcript_to_file():
-        """Runs when the room/agent is shutting down."""
-        # Cancel the pipeline timer gracefully
-        if not pipeline_task.done():
-            pipeline_task.cancel()
-            try:
-                await asyncio.wait_for(pipeline_task, timeout=2.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass
-
-        import json
-
-        current_date = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        filename = f"/tmp/transcript_{ctx.room.name}_{current_date}.json"
-
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(session.history.to_dict(), f, indent=2)
-
-        logger.info(f"💾 Transcript saved to {filename}")
-
-    ctx.add_shutdown_callback(write_transcript_to_file)
 
     # Start the agent session
     await session.start(agent=agent, room=ctx.room)

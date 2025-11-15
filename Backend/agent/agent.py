@@ -136,11 +136,20 @@ class GuardianAgent:
 
     def n_update_transcript(self, state: GuardianState) -> GuardianState:
         """
-        Read transcript from shared_state instead of appending.
-        The telephony agent is already updating shared_state['transcript'].
+        Read transcript from shared_state and convert format.
+        The telephony agent uses 'role', but analysis expects 'speaker'.
         """
-        # Use the transcript from shared_state (which telephony_agent updates)
-        state["transcript"] = shared_state.get("transcript", [])
+        # Get transcript from shared_state (telephony_agent updates this)
+        raw_transcript = shared_state.get("transcript", [])
+
+        # Convert format: 'role' -> 'speaker', keep 'text'
+        converted_transcript = []
+        for entry in raw_transcript:
+            converted_transcript.append(
+                {"speaker": entry.get("role", "unknown"), "text": entry.get("text", "")}
+            )
+
+        state["transcript"] = converted_transcript
 
         # Always analyze when invoked by timer
         state["should_analyze_now"] = True
