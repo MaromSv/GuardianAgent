@@ -33,6 +33,28 @@ logger = logging.getLogger("telephony-agent")
 # Initialize GuardianAgent
 guardian_agent = GuardianAgent()
 
+# Track introduction state per call
+introduction_state = {"introduced": False, "count": 0}
+
+
+@function_tool
+async def have_I_introduced_myself() -> dict:
+    """Check whether the guardian has introduced itself yet.
+
+    Returns:
+        dict: {"introduced": bool} - True if already introduced, False otherwise
+    """
+    global introduction_state
+
+    result = {"introduced": introduction_state["introduced"]}
+
+    # Mark as introduced after first check
+    if not introduction_state["introduced"]:
+        introduction_state["introduced"] = True
+        introduction_state["count"] += 1
+
+    return result
+
 
 @function_tool
 async def get_current_state() -> dict:
@@ -154,6 +176,11 @@ async def on_call_hangup(ctx: JobContext, pipeline_task: asyncio.Task):
 
 async def entrypoint(ctx: JobContext):
     """Main entry point for the telephony voice agent."""
+    global introduction_state
+
+    # Reset introduction state for new call
+    introduction_state = {"introduced": False, "count": 0}
+
     await ctx.connect()
 
     # Wait for participants
@@ -248,6 +275,13 @@ ROLES:
 "user" = the elderly person being protected.
 "pottential_scammer" = the other human caller who may be a scammer.
 NAME HANDLING (IMPORTANT):
+Before speaking, use the tool have_I_introduced_myself() to check if you have already
+introduced yourself. The tool returns {"introduced": true} or {"introduced": false}.
+If {"introduced": false}, introduce yourself ONCE with:
+"Hello, this is Guardian Agent. I'm here to help ensure your safety during this call."
+Then proceed with your question or warning.
+If {"introduced": true}, skip the introduction and go straight to your message.
+
 Before speaking, look at the CONVERSATION HISTORY to see if the caller
 has introduced themselves with a name. Examples:
 "Hi, this is John from Microsoft support."
@@ -294,7 +328,7 @@ Be concise and direct.
 Prioritize user safety over politeness if necessary.
 NEVER speak when the tool action is "observe".
 """,
-        tools=[get_current_state],
+        tools=[get_current_state, have_I_introduced_myself],
     )
 
     session = AgentSession(
