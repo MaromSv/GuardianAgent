@@ -12,32 +12,32 @@ from utils.check_phone_reputation import check_reputation
 from utils.assess_scam_probability import analyze_transcript
 from utils.report_scam import add_scam_to_database
 from logger import logger
-from shared_state import shared_state  # Import the shared state
+from shared_state import shared_state
 
 
 class GuardianState(TypedDict, total=False):
     # Call / meta
     call_sid: str
-    user_number: str  # older person's number
-    caller_number: str  # unknown caller
-    call_started_at: float  # epoch seconds
+    user_number: str
+    caller_number: str
+    call_started_at: float
 
     # Transcript
-    transcript: List[Dict[str, str]]  # [{ "speaker": "...", "text": "..." }]
+    transcript: List[Dict[str, str]]
     last_chunk: str
-    speaker: str  # "caller" | "user"
-    last_analysis_ts: float  # epoch seconds of last analysis
+    speaker: str
+    last_analysis_ts: float
     should_analyze_now: bool
 
     # Scam reputation
-    reputation_check: Dict[str, Any]  # { "risk_score": float, "known_scam": bool, ... }
+    reputation_check: Dict[str, Any]
 
     # Analysis
-    analysis: Dict[str, Any]  # latest analysis result
+    analysis: Dict[str, Any]
     analysis_history: List[Dict[str, Any]]
 
     # Decision
-    decision: Dict[str, Any]  # { "action": "observe"|"question"|"warn", "reason": str }
+    decision: Dict[str, Any]
     should_continue: bool
     stop_call: bool
 
@@ -53,61 +53,48 @@ class GuardianState(TypedDict, total=False):
     activity: List[Dict[str, Any]]
 
     # Current tool being used (for UI display)
-    current_tool: str  # e.g., "phone_reputation_check", "transcript_analysis", "web_search", "decision_making", None
-    current_tool_description: (
-        str  # Human-readable description of what the tool is doing
-    )
+    current_tool: str
+    current_tool_description: str
 
 
 def _log(state: GuardianState, stage: str, data: Dict[str, Any]) -> GuardianState:
-    """
-    Log an activity entry. Includes current_tool info if set (for historical record).
-    """
+    """Log an activity entry (only for important stages, not every transcript update)."""
     entry = {"stage": stage, "data": data}
-    # Include current tool info if it's set (for historical record)
     current_tool = state.get("current_tool")
     if current_tool:
         entry["tool"] = current_tool
     current_tool_desc = state.get("current_tool_description")
     if current_tool_desc:
         entry["tool_description"] = current_tool_desc
-    logger.log_tool_result(stage, entry)
+
+    # Only log to logger for important stages
+    if stage in [
+        "check_reputation",
+        "analyze_transcript",
+        "decide_action",
+        "process_scam",
+    ]:
+        logger.log_tool_result(stage, entry)
+
     state.setdefault("activity", []).append(entry)
     return state
 
 
 class GuardianAgent:
     """
-    GuardianAgent pipeline using LangGraph, with nodes that:
-      - init state
-      - update transcript
-      - periodically analyze for scam (every ANALYZE_INTERVAL_SECONDS)
-      - decide on action (observe / question / warn)
-      - for high risk (warn): process scam
-      - optionally generate Guardian speech (text + audio)
-
-    The “loop” is:
-      - your backend calls process_chunk(...) repeatedly (e.g. per transcript chunk)
-      - n_update_transcript decides if enough time has passed to re-run n_analyze
-      - whenever risk is high enough, n_generate_utterance creates speech
+    GuardianAgent pipeline using LangGraph.
+    Runs every 10 seconds via timer in telephony_agent.py
     """
 
-    # This is your "loop interval": how often we re-analyze transcript
-    # Can be overridden via environment variable for testing
-    ANALYZE_INTERVAL_SECONDS = int(os.getenv("GUARDIAN_ANALYZE_INTERVAL", "30"))
-
     def __init__(self, llm=None):
-        self.llm = llm  # reserved for later, e.g., real OpenAI client
+        self.llm = llm
         self.memory = MemorySaver()
         self._setup_graph()
 
     # ──────────────── Nodes ──────────────── #
 
     def n_init(self, state: GuardianState) -> GuardianState:
-        """
-        Ensure required keys exist and handle first-time setup per call.
-        This runs on every graph invocation (e.g., every transcript chunk or timer tick).
-        """
+        """Ensure required keys exist and handle first-time setup per call."""
         now = time.time()
 
         # Ensure basics
@@ -118,16 +105,6 @@ class GuardianAgent:
         # First-time setup for this call
         if "call_started_at" not in state:
             state["call_started_at"] = now
-            _log(
-                state,
-                "init_call",
-                {
-                    "msg": "Initialized new call state",
-                    "call_sid": state.get("call_sid"),
-                    "caller_number": state.get("caller_number"),
-                    "user_number": state.get("user_number"),
-                },
-            )
 
         # Normalize speaker
         speaker = state.get("speaker") or "caller"
@@ -140,16 +117,12 @@ class GuardianAgent:
         return state
 
     def n_check_reputation(self, state: GuardianState) -> GuardianState:
-        """
-        Check caller_number against a placeholder scam DB.
-        Only needed once per call, but cheap enough to run every time.
-        """
+        """Check caller_number against scam database."""
         caller_number = state.get("caller_number")
         if not caller_number:
             return state
 
         if "reputation_check" not in state:
-            # Set current tool for UI
             state["current_tool"] = "phone_reputation_check"
             state["current_tool_description"] = (
                 f"Checking phone number {caller_number} against scam database"
@@ -163,37 +136,20 @@ class GuardianAgent:
 
     def n_update_transcript(self, state: GuardianState) -> GuardianState:
         """
-        Append last_chunk to transcript and decide if it's time to analyze again.
-
-        This is the “loop point”: every time your backend calls process_chunk(),
-        this node runs and sets should_analyze_now based on ANALYZE_INTERVAL_SECONDS.
+        Read transcript from shared_state instead of appending.
+        The telephony agent is already updating shared_state['transcript'].
         """
-        last_chunk = state.get("last_chunk") or ""
-        speaker = state.get("speaker") or "caller"
+        # Use the transcript from shared_state (which telephony_agent updates)
+        state["transcript"] = shared_state.get("transcript", [])
 
-        if last_chunk:
-            shared_state["transcript"].append({"speaker": speaker, "text": last_chunk})
-            _log(
-                state,
-                "update_transcript",
-                {"speaker": speaker, "text": last_chunk},
-            )
-
-        now = time.time()
-        last_ts = state.get("last_analysis_ts", 0.0)
-
-        if now - last_ts >= self.ANALYZE_INTERVAL_SECONDS:
-            state["should_analyze_now"] = True
-        else:
-            state["should_analyze_now"] = False
+        # Always analyze when invoked by timer
+        state["should_analyze_now"] = True
+        state["last_analysis_ts"] = time.time()
 
         return state
 
     def n_analyze(self, state: GuardianState) -> GuardianState:
-        """
-        Analyze transcript for scam indicators using AI.
-        """
-        # Set current tool for UI
+        """Analyze transcript for scam indicators using AI."""
         state["current_tool"] = "transcript_analysis"
         state["current_tool_description"] = "Analyzing conversation for scam indicators"
 
@@ -202,19 +158,12 @@ class GuardianAgent:
         state.setdefault("analysis_history", []).append(
             {"ts": time.time(), **analysis_obj}
         )
-        state["last_analysis_ts"] = time.time()
         _log(state, "analyze_transcript", analysis_obj)
 
         return state
 
     def n_decide(self, state: GuardianState) -> GuardianState:
-        """
-        Decide what GuardianAgent should do:
-          - observe
-          - question
-          - warn
-        Based on AI transcript analysis and phone reputation database.
-        """
+        """Decide what GuardianAgent should do: observe, question, or warn."""
         analysis = state.get("analysis") or {}
         rep = state.get("reputation_check") or {}
 
@@ -229,7 +178,7 @@ class GuardianAgent:
         else:
             action = "observe"
 
-        # Build detailed reason showing which source contributed most
+        # Build detailed reason
         if phone_risk > 0 and transcript_risk > 0:
             if phone_risk >= transcript_risk:
                 if rep.get("known_scam"):
@@ -254,26 +203,19 @@ class GuardianAgent:
             "risk_score": risk,
         }
 
-        # Set current tool for UI
         state["current_tool"] = "decision_making"
         state["current_tool_description"] = "Evaluating risk and deciding on action"
 
-        # For now, we never auto-stop the call
         state["decision"] = decision
         state["stop_call"] = False
-        state["should_continue"] = True  # placeholder for future more complex loops
+        state["should_continue"] = True
 
         _log(state, "decide_action", decision)
 
         return state
 
     def n_process_scam(self, state: GuardianState) -> GuardianState:
-        """
-        Process a detected scam by adding the number to the local database.
-        This runs when we are confident this is a scam (action == 'warn').
-
-        The number will be added to scam_numbers.json for future detection.
-        """
+        """Process a detected scam by adding the number to the local database."""
         decision = state.get("decision") or {}
         caller_number = state.get("caller_number")
         risk = decision.get("risk_score")
@@ -281,19 +223,10 @@ class GuardianAgent:
 
         # Only process once per call
         if state.get("scam_processed"):
-            _log(
-                state,
-                "process_scam",
-                {
-                    "msg": "Scam already processed, skipping.",
-                    "caller_number": caller_number,
-                },
-            )
             return state
 
         state["scam_processed"] = True
 
-        # Add the scam number to our local database
         result = add_scam_to_database(
             phone_number=caller_number,
             risk_score=risk,
@@ -310,57 +243,40 @@ class GuardianAgent:
         }
 
         state["scam_report_result"] = scam_data
-
         _log(state, "process_scam", scam_data)
         return state
 
     def n_generate_utterance(self, state: GuardianState) -> GuardianState:
-        """
-        Mark that an utterance should be generated (text generation only).
-        TTS will be handled by the telephony service.
-        This node just marks the decision for the telephony service to act on.
-        """
+        """Mark that an utterance should be generated."""
         decision = state.get("decision") or {}
         action = decision.get("action", "observe")
 
         if action == "observe":
-            # No speech needed
             state["guardian_utterance_text"] = ""
-            _log(
-                state,
-                "generate_utterance",
-                {"msg": "Skipping utterance (observe only)."},
-            )
             return state
 
         # Update shared state to signal telephony service to generate speech
         shared_state["decision"] = decision
         shared_state["action"] = action
 
-        _log(
-            state,
-            "generate_utterance",
-            {
-                "msg": "Decision marked for telephony service",
-                "action": action,
-                "reason": decision.get("reason"),
-            },
-        )
-
         return state
 
     def n_finalize(self, state: GuardianState) -> GuardianState:
         """
-        End-of-step bookkeeping. In a real system, you might sync final risk score
-        to a DB here. For now it's mostly a logging node.
+        End-of-step bookkeeping.
+        Update shared_state with analysis results for telephony agent to use.
         """
+        # Update shared_state with the latest results
+        shared_state["analysis"] = state.get("analysis", {})
+        shared_state["decision"] = state.get("decision", {})
+        shared_state["risk_score"] = state.get("decision", {}).get("risk_score", 0)
+
         summary = {
             "call_sid": state.get("call_sid"),
             "caller_number": state.get("caller_number"),
             "user_number": state.get("user_number"),
             "latest_risk": (state.get("analysis") or {}).get("risk_score"),
             "decision": state.get("decision"),
-            "audio_url": state.get("guardian_utterance_audio_url"),
             "scam_processed": state.get("scam_processed", False),
         }
         _log(state, "finalize_step", summary)
@@ -405,13 +321,9 @@ class GuardianAgent:
             },
         )
 
-        # If we analyzed, we then decide what to do
         builder.add_edge("analyze", "decide")
 
         # After decide, branch based on action
-        # - observe  -> no speech, straight to finalize
-        # - warn     -> process_scam, then generate speech
-        # - question -> generate speech
         def branch_after_decide(state: GuardianState):
             action = (state.get("decision") or {}).get("action", "observe")
             if action == "observe":
@@ -419,7 +331,6 @@ class GuardianAgent:
             elif action == "warn":
                 return "process_scam"
             else:
-                # "question" or any other action
                 return "speak"
 
         builder.add_conditional_edges(
@@ -432,9 +343,7 @@ class GuardianAgent:
             },
         )
 
-        # If we processed scam, we still want to speak (warn the user)
         builder.add_edge("process_scam", "generate_utterance")
-
         builder.add_edge("generate_utterance", "finalize")
         builder.add_edge("finalize", END)
 
@@ -453,7 +362,8 @@ class GuardianAgent:
         thread_id: Optional[str] = None,
     ) -> GuardianState:
         """
-        Entry point for each transcript chunk.
+        Entry point for timer-based pipeline runs.
+        Reads transcript from shared_state, analyzes it, updates shared_state with results.
         """
         initial: GuardianState = {
             "call_sid": call_sid,
@@ -467,19 +377,9 @@ class GuardianAgent:
             initial,
             config={
                 "configurable": {
-                    # tie the graph state to this call
-                    "thread_id": thread_id
-                    or call_sid
-                    or str(uuid.uuid4()),
+                    "thread_id": thread_id or call_sid or str(uuid.uuid4()),
                 }
             },
         )
 
-        # Log the results
-        msg = (
-            f"Processed chunk for call_sid={call_sid}, "
-            f"decision={result.get('decision')}, "
-            f"audio_url={result.get('guardian_utterance_audio_url')!r}"
-        )
-        logger.log_agent_response("GuardianAgent", msg)
         return result
