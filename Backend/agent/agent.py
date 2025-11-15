@@ -127,6 +127,11 @@ class GuardianAgent:
             state["current_tool_description"] = (
                 f"Checking phone number {caller_number} against scam database"
             )
+            
+            # Push to shared_state immediately for UI
+            shared_state["current_tool"] = state["current_tool"]
+            shared_state["current_tool_description"] = state["current_tool_description"]
+            save_shared_state()
 
             rep = check_reputation(caller_number)
             state["reputation_check"] = rep
@@ -176,6 +181,11 @@ class GuardianAgent:
         state["current_tool"] = "speaker_identification"
         state["current_tool_description"] = "Identifying speakers in conversation"
         
+        # Push to shared_state immediately for UI
+        shared_state["current_tool"] = state["current_tool"]
+        shared_state["current_tool_description"] = state["current_tool_description"]
+        save_shared_state()
+        
         # Identify speakers (distinguishes user vs caller)
         updated_transcript = identify_speakers(
             transcript=transcript,
@@ -200,6 +210,11 @@ class GuardianAgent:
         """Analyze transcript for scam indicators using AI."""
         state["current_tool"] = "transcript_analysis"
         state["current_tool_description"] = "Analyzing conversation for scam indicators"
+        
+        # Push to shared_state immediately for UI
+        shared_state["current_tool"] = state["current_tool"]
+        shared_state["current_tool_description"] = state["current_tool_description"]
+        save_shared_state()
 
         analysis_obj = analyze_transcript(state["transcript"])
         state["analysis"] = analysis_obj
@@ -253,6 +268,11 @@ class GuardianAgent:
 
         state["current_tool"] = "decision_making"
         state["current_tool_description"] = "Evaluating risk and deciding on action"
+        
+        # Push to shared_state immediately for UI
+        shared_state["current_tool"] = state["current_tool"]
+        shared_state["current_tool_description"] = state["current_tool_description"]
+        save_shared_state()
 
         state["decision"] = decision
         state["stop_call"] = False
@@ -274,6 +294,15 @@ class GuardianAgent:
             return state
 
         state["scam_processed"] = True
+        
+        # Set current tool for UI
+        state["current_tool"] = "scam_database_update"
+        state["current_tool_description"] = f"Adding {caller_number} to scam database"
+        
+        # Push to shared_state immediately for UI
+        shared_state["current_tool"] = state["current_tool"]
+        shared_state["current_tool_description"] = state["current_tool_description"]
+        save_shared_state()
 
         result = add_scam_to_database(
             phone_number=caller_number,
@@ -318,6 +347,10 @@ class GuardianAgent:
         shared_state["analysis"] = state.get("analysis", {})
         shared_state["decision"] = state.get("decision", {})
         shared_state["risk_score"] = state.get("decision", {}).get("risk_score", 0)
+        
+        # Clear current tool info (workflow complete)
+        shared_state["current_tool"] = ""
+        shared_state["current_tool_description"] = ""
 
         summary = {
             "call_sid": state.get("call_sid"),
@@ -329,7 +362,7 @@ class GuardianAgent:
         }
         _log(state, "finalize_step", summary)
 
-        # Clear tool status after workflow completes
+        # Clear tool status in state after workflow completes
         state["current_tool"] = ""
         state["current_tool_description"] = ""
 

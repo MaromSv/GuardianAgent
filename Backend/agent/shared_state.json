@@ -4,13 +4,25 @@
       "speaker": "user",
       "text": "Hello?",
       "interrupted": false,
-      "timestamp": "2025-11-15T19:22:05.554764Z"
+      "timestamp": "2025-11-15T21:31:41.752372Z"
     },
     {
-      "speaker": "agent",
-      "text": "Warning: This call is from a known scam number with a high risk score of 95%. Please hang up immediately and do not engage with the caller.",
+      "speaker": "user",
+      "text": "It is",
       "interrupted": false,
-      "timestamp": "2025-11-15T19:22:29.308543Z"
+      "timestamp": "2025-11-15T21:31:45.782940Z"
+    },
+    {
+      "speaker": "user",
+      "text": "I think it is working.",
+      "interrupted": false,
+      "timestamp": "2025-11-15T21:31:54.979857Z"
+    },
+    {
+      "speaker": "user",
+      "text": "Though.",
+      "interrupted": false,
+      "timestamp": "2025-11-15T21:31:57.980333Z"
     }
   ],
   "transcript": [
@@ -21,28 +33,41 @@
       "timestamp": ""
     },
     {
-      "speaker": "agent",
-      "text": "Warning: This call is from a known scam number with a high risk score of 95%. Please hang up immediately and do not engage with the caller.",
+      "speaker": "pottential_scammer",
+      "text": "It is",
       "interrupted": false,
-      "timestamp": "2025-11-15T19:22:29.308543Z"
+      "timestamp": ""
+    },
+    {
+      "speaker": "user",
+      "text": "I think it is working.",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "user",
+      "text": "Though.",
+      "interrupted": false,
+      "timestamp": ""
     }
   ],
   "analysis": {
     "risk_score": 0.0,
-    "confidence": 1.0,
-    "reason": "The conversation is too brief to identify any scam indicators.",
+    "confidence": 0.0,
+    "reason": "The conversation snippet does not contain any identifiable scam indicators or tactics.",
     "scam_indicators": [],
     "recommended_action": "observe",
     "model": "gpt-4o-mini"
   },
   "decision": {
-    "action": "warn",
-    "reason": "Known scam number detected (risk: 95%)",
-    "risk_score": 95.0
+    "action": "observe",
+    "reason": "Phone reputation risk: 10%",
+    "risk_score": 10.0
   },
-  "risk_score": 95.0,
-  "caller_number": "sip_+31615869452",
-  "user_number": "sip_+31615869452",
+  "risk_score": 10.0,
+  "caller_number": "sip_+31657736820",
+  "user_number": "sip_+31657736820",
   "call_sid": "Guardian Agent Room",
-  "action": "warn"
+  "current_tool": "",
+  "current_tool_description": ""
 }

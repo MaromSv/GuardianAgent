@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_FROM = os.getenv("TWILIO_FROM_NUMBER")
+NUMBER_TO_SEND_SMS_TO = os.getenv("PROTECTED_USER_NUMBER_2")
 
 client = Client(TWILIO_SID, TWILIO_AUTH)
 
@@ -46,8 +47,8 @@ def send_family_alert_sms(
 if __name__ == "__main__":
     # Test the SMS function
     response = send_family_alert_sms(
-        family_number="+31615869452",
-        user_number="+31615869452",
+        family_number=NUMBER_TO_SEND_SMS_TO,
+        user_number=NUMBER_TO_SEND_SMS_TO,
         scam_details="Caller claimed to be from the bank and asked for your account info.",
         risk_score=92.5,
     )

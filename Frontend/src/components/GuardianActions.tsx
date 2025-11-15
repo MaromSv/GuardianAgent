@@ -1,10 +1,13 @@
 import { GuardianAgentState } from "@/types/guardian";
-import { Volume2, VolumeX, Shield, Search, Brain, Phone, MessageSquare, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { Volume2, VolumeX, Shield, Search, Brain, Phone, MessageSquare, Loader2, Database } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 
 interface GuardianActionsProps {
   state: GuardianAgentState | null;
 }
+
+// Minimum time to display each tool (in milliseconds)
+const MIN_TOOL_DISPLAY_TIME = 2000; // 2 seconds
 
 // Map tool names to display info
 const toolInfo: Record<string, { icon: typeof Shield; label: string; color: string }> = {
@@ -12,6 +15,11 @@ const toolInfo: Record<string, { icon: typeof Shield; label: string; color: stri
     icon: Phone,
     label: "Phone Number Check",
     color: "text-blue-600 dark:text-blue-400"
+  },
+  speaker_identification: {
+    icon: MessageSquare,
+    label: "Speaker Identification",
+    color: "text-cyan-600 dark:text-cyan-400"
   },
   transcript_analysis: {
     icon: Brain,
@@ -28,6 +36,11 @@ const toolInfo: Record<string, { icon: typeof Shield; label: string; color: stri
     label: "Decision Making",
     color: "text-orange-600 dark:text-orange-400"
   },
+  scam_database_update: {
+    icon: Database,
+    label: "Database Update",
+    color: "text-red-600 dark:text-red-400"
+  },
   speech_generation: {
     icon: MessageSquare,
     label: "Generating Speech",
@@ -36,36 +49,62 @@ const toolInfo: Record<string, { icon: typeof Shield; label: string; color: stri
 };
 
 export function GuardianActions({ state }: GuardianActionsProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
-
-  // Simplified: Look for most recent tool in activity log
-  let toolDisplay = null;
-  let toolDescription = "";
-  let isActive = false;
+  // State to persist tool display even after backend clears it
+  const [displayedTool, setDisplayedTool] = useState<{
+    tool: string;
+    description: string;
+    isActive: boolean;
+  } | null>(null);
   
-  // First check if there's an active tool
-  if (state?.current_tool && state?.current_tool_description) {
-    toolDisplay = toolInfo[state.current_tool] || null;
-    toolDescription = state.current_tool_description;
-    isActive = true;
-  }
-  // Otherwise check activity log for most recent tool
-  else if (state?.activity && state.activity.length > 0) {
-    for (let i = state.activity.length - 1; i >= 0; i--) {
-      const entry = state.activity[i];
-      if (entry.tool) {
-        toolDisplay = toolInfo[entry.tool] || null;
-        toolDescription = entry.tool_description || "";
-        break;
+  const clearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // Check if there's an active tool from the backend
+    if (state?.current_tool && state?.current_tool_description) {
+      // Clear any existing timeout
+      if (clearTimeoutRef.current) {
+        clearTimeout(clearTimeoutRef.current);
+        clearTimeoutRef.current = null;
+      }
+      
+      // Update displayed tool immediately
+      setDisplayedTool({
+        tool: state.current_tool,
+        description: state.current_tool_description,
+        isActive: true
+      });
+    }
+    // If backend cleared the tool but we're still displaying one
+    else if (displayedTool && (!state?.current_tool || !state?.current_tool_description)) {
+      // Mark as inactive (remove spinner)
+      if (displayedTool.isActive) {
+        setDisplayedTool({
+          ...displayedTool,
+          isActive: false
+        });
+      }
+      
+      // Set a timeout to clear the display after minimum display time
+      if (!clearTimeoutRef.current) {
+        clearTimeoutRef.current = setTimeout(() => {
+          setDisplayedTool(null);
+          clearTimeoutRef.current = null;
+        }, MIN_TOOL_DISPLAY_TIME);
       }
     }
-  }
-  
-  // Debug: log what we have
-  if (state?.activity && state.activity.length > 0) {
-    console.log("Latest activity:", state.activity[state.activity.length - 1]);
-    console.log("Tool display:", toolDisplay, toolDescription);
-  }
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (clearTimeoutRef.current) {
+        clearTimeout(clearTimeoutRef.current);
+      }
+    };
+  }, [state?.current_tool, state?.current_tool_description, displayedTool]);
+
+  // Get display info for the current tool
+  const toolDisplay = displayedTool ? toolInfo[displayedTool.tool] || null : null;
+  const toolDescription = displayedTool?.description || "";
+  const isActive = displayedTool?.isActive || false;
 
   return (
     <div className="bg-card rounded-lg border border-border p-6 space-y-4">
@@ -91,8 +130,18 @@ export function GuardianActions({ state }: GuardianActionsProps) {
       
       {/* Show monitoring message only if no tool activity */}
       {!toolDisplay && (
-        <div className="text-center py-4">
-          <p className="text-base text-muted-foreground">Guardian is monitoring...</p>
+        <div className="text-center py-8">
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <Shield className="h-6 w-6 text-muted-foreground animate-pulse" />
+          </div>
+          <p className="text-base text-muted-foreground flex items-center justify-center gap-1">
+            Guardian is monitoring
+            <span className="flex gap-0.5 ml-1">
+              <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
+              <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
+              <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
+            </span>
+          </p>
         </div>
       )}
     </div>

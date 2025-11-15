@@ -31,6 +31,8 @@ from agent.agent import GuardianAgent
 load_dotenv()
 logger = logging.getLogger("telephony-agent")
 
+NUMBER_TO_SEND_SMS_TO = os.getenv("PROTECTED_USER_NUMBER_2")
+
 # Initialize GuardianAgent
 guardian_agent = GuardianAgent()
 
@@ -159,7 +161,7 @@ async def on_call_hangup(ctx: JobContext, pipeline_task: asyncio.Task):
         # If scam detected, send SMS alert and report to authorities
         decision = shared_state.get("decision", {})
         if decision.get("action") == "warn":
-            family_number = "+31615869452"
+            family_number = NUMBER_TO_SEND_SMS_TO
             scam_details = shared_state.get("analysis", {}).get("reason", "")
             risk = decision.get("risk_score", 0)
 
