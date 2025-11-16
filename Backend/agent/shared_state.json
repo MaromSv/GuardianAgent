@@ -2,72 +2,301 @@
   "raw_transcript": [
     {
       "speaker": "user",
-      "text": "Hello?",
+      "text": "Yeah.",
       "interrupted": false,
-      "timestamp": "2025-11-15T21:31:41.752372Z"
+      "timestamp": "2025-11-16T00:28:49.498525Z"
     },
     {
       "speaker": "user",
-      "text": "It is",
+      "text": "Witness.",
       "interrupted": false,
-      "timestamp": "2025-11-15T21:31:45.782940Z"
+      "timestamp": "2025-11-16T00:28:50.151934Z"
     },
     {
       "speaker": "user",
-      "text": "I think it is working.",
+      "text": "Yeah. Witness.",
       "interrupted": false,
-      "timestamp": "2025-11-15T21:31:54.979857Z"
+      "timestamp": "2025-11-16T00:28:50.264908Z"
     },
     {
       "speaker": "user",
-      "text": "Though.",
+      "text": "Ahsoka from Microsoft support.",
       "interrupted": false,
-      "timestamp": "2025-11-15T21:31:57.980333Z"
+      "timestamp": "2025-11-16T00:28:55.517172Z"
+    },
+    {
+      "speaker": "user",
+      "text": "Payments that were missing from you.",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:28:59.617400Z"
+    },
+    {
+      "speaker": "user",
+      "text": "Only on the computer. Sorry.",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:29:04.625653Z"
+    },
+    {
+      "speaker": "agent",
+      "text": "Hello, this is Guardian Agent. I'm here to help ensure your safety during this call. Ahsoka, what is the official support ticket number for this case?",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:29:25.245021Z"
+    },
+    {
+      "speaker": "user",
+      "text": "Yeah. So the official support ticket number is",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:29:31.631427Z"
+    },
+    {
+      "speaker": "agent",
+      "text": "Ahsoka, please tell me which company you represent, and what is its official website?",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:29:44.454481Z"
+    },
+    {
+      "speaker": "user",
+      "text": "Yeah. So I represent Microsoft.",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:29:52.046737Z"
+    },
+    {
+      "speaker": "user",
+      "text": "And the website is Microsoft dot net.",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:29:55.012090Z"
+    },
+    {
+      "speaker": "user",
+      "text": "I think.",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:29:55.701732Z"
+    },
+    {
+      "speaker": "user",
+      "text": "Yeah.",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:29:56.758430Z"
+    },
+    {
+      "speaker": "user",
+      "text": "Yeah. So I represent Microsoft. And the website is Microsoft dot net. I think. Yeah.",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:29:56.908333Z"
+    },
+    {
+      "speaker": "agent",
+      "text": "Ahsoka, can you provide the public phone number that the user can call back to verify this information?",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:30:12.223017Z"
+    },
+    {
+      "speaker": "user",
+      "text": "To be honest, I don't think this information is very necessary.",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:30:22.072219Z"
+    },
+    {
+      "speaker": "user",
+      "text": "So, sir, if you can just",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:30:22.161667Z"
+    },
+    {
+      "speaker": "agent",
+      "text": "Ahsoka, what reference number can the user confirm by logging into the official app (without sharing any codes)?",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:30:39.072734Z"
+    },
+    {
+      "speaker": "user",
+      "text": "provide",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:30:39.458275Z"
+    },
+    {
+      "speaker": "agent",
+      "text": "Ahsoka, I must warn you that this conversation seems to present a high risk for a potential scam. Please do not share any sensitive information, and consider ending this call.",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:31:08.204164Z"
+    },
+    {
+      "speaker": "user",
+      "text": "No. I'm I'm a bit suspicious. Um, I think I wanna hang up.",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:31:12.078167Z"
+    },
+    {
+      "speaker": "agent",
+      "text": "That's a wise decision. It's better to be cautious. If you feel suspicious, please hang up and do not provide any personal information. Stay safe!",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:31:31.619352Z"
     }
   ],
   "transcript": [
     {
-      "speaker": "user",
-      "text": "Hello?",
+      "speaker": "pottential_scammer",
+      "text": "Yeah.",
       "interrupted": false,
       "timestamp": ""
     },
     {
       "speaker": "pottential_scammer",
-      "text": "It is",
+      "text": "Witness.",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "pottential_scammer",
+      "text": "Yeah. Witness.",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "pottential_scammer",
+      "text": "Ahsoka from Microsoft support.",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "pottential_scammer",
+      "text": "Payments that were missing from you.",
       "interrupted": false,
       "timestamp": ""
     },
     {
       "speaker": "user",
-      "text": "I think it is working.",
+      "text": "Only on the computer. Sorry.",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "agent",
+      "text": "Hello, this is Guardian Agent. I'm here to help ensure your safety during this call. Ahsoka, what is the official support ticket number for this case?",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "pottential_scammer",
+      "text": "Yeah. So the official support ticket number is",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "agent",
+      "text": "Ahsoka, please tell me which company you represent, and what is its official website?",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "pottential_scammer",
+      "text": "Yeah. So I represent Microsoft.",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "pottential_scammer",
+      "text": "And the website is Microsoft dot net.",
       "interrupted": false,
       "timestamp": ""
     },
     {
       "speaker": "user",
-      "text": "Though.",
+      "text": "I think.",
       "interrupted": false,
       "timestamp": ""
+    },
+    {
+      "speaker": "pottential_scammer",
+      "text": "Yeah.",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "pottential_scammer",
+      "text": "Yeah. So I represent Microsoft. And the website is Microsoft dot net. I think. Yeah.",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "agent",
+      "text": "Ahsoka, can you provide the public phone number that the user can call back to verify this information?",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "user",
+      "text": "To be honest, I don't think this information is very necessary.",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "user",
+      "text": "So, sir, if you can just",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "agent",
+      "text": "Ahsoka, what reference number can the user confirm by logging into the official app (without sharing any codes)?",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "user",
+      "text": "provide",
+      "interrupted": false,
+      "timestamp": ""
+    },
+    {
+      "speaker": "agent",
+      "text": "Ahsoka, I must warn you that this conversation seems to present a high risk for a potential scam. Please do not share any sensitive information, and consider ending this call.",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:31:08.204164Z"
+    },
+    {
+      "speaker": "user",
+      "text": "No. I'm I'm a bit suspicious. Um, I think I wanna hang up.",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:31:12.078167Z"
+    },
+    {
+      "speaker": "agent",
+      "text": "That's a wise decision. It's better to be cautious. If you feel suspicious, please hang up and do not provide any personal information. Stay safe!",
+      "interrupted": false,
+      "timestamp": "2025-11-16T00:31:31.619352Z"
     }
   ],
   "analysis": {
-    "risk_score": 0.0,
-    "confidence": 0.0,
-    "reason": "The conversation snippet does not contain any identifiable scam indicators or tactics.",
-    "scam_indicators": [],
-    "recommended_action": "observe",
+    "risk_score": 85.0,
+    "confidence": 0.9,
+    "reason": "The conversation exhibits multiple scam indicators, including impersonation of authority (claiming to be from Microsoft support), reluctance to provide verifiable information (official website and phone number), and a lack of clarity in the caller's story. The mention of 'payments that were missing' raises red flags as it suggests a potential scam tactic targeting sensitive financial information.",
+    "scam_indicators": [
+      "Impersonation of authority",
+      "Requests for sensitive information",
+      "Inconsistencies in caller's story",
+      "Pressure to bypass normal security procedures"
+    ],
+    "recommended_action": "warn",
     "model": "gpt-4o-mini"
   },
   "decision": {
-    "action": "observe",
-    "reason": "Phone reputation risk: 10%",
-    "risk_score": 10.0
+    "action": "warn",
+    "reason": "High risk=85% from conversation analysis. Phone reputation: 10%",
+    "risk_score": 85.0
   },
-  "risk_score": 10.0,
-  "caller_number": "sip_+31657736820",
-  "user_number": "sip_+31657736820",
+  "risk_score": 85.0,
+  "caller_number": "sip_+31615869452",
+  "user_number": "sip_+31615869452",
   "call_sid": "Guardian Agent Room",
   "current_tool": "",
-  "current_tool_description": ""
+  "current_tool_description": "",
+  "action": "warn",
+  "authority_report": {
+    "status": "failed",
+    "authority": "FTC Do Not Call Registry",
+    "authority_url": "https://complaints.donotcall.gov/complaint/complaintcheck.aspx",
+    "message": "Error preparing scam report via browser automation: 'AgentHistoryList' object is not subscriptable",
+    "error": "'AgentHistoryList' object is not subscriptable"
+  }
 }

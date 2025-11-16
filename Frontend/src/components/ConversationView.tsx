@@ -77,28 +77,36 @@ export function ConversationView({ state }: ConversationViewProps) {
   const [showLoading, setShowLoading] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
 
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (scrollRef.current && autoScroll) {
+    if (!scrollRef.current) return;
+    
+    const currentLength = state?.transcript?.length || 0;
+    
+    // If new messages arrived, scroll to bottom (regardless of autoScroll state)
+    if (currentLength > lastTranscriptLength) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      setAutoScroll(true); // Re-enable auto-scroll on new messages
+    } else if (autoScroll) {
+      // If already at bottom, keep scrolling to bottom
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [state?.transcript, autoScroll]);
+  }, [state?.transcript]);
 
   // Track transcript changes to show/hide loading indicator
   useEffect(() => {
     const currentLength = state?.transcript?.length || 0;
     
-    if (currentLength > lastTranscriptLength) {
-      // New message arrived, hide loading
+    if (currentLength !== lastTranscriptLength) {
+      // Transcript changed
       setShowLoading(false);
       setLastTranscriptLength(currentLength);
-    } else if (currentLength > 0 && currentLength === lastTranscriptLength) {
+    } else if (currentLength > 0) {
       // Same length, show loading after a delay
       const timer = setTimeout(() => {
         setShowLoading(true);
       }, 2000); // Show loading after 2 seconds of no new messages
       return () => clearTimeout(timer);
-    } else {
-      setLastTranscriptLength(currentLength);
     }
   }, [state?.transcript, lastTranscriptLength]);
 
@@ -108,9 +116,14 @@ export function ConversationView({ state }: ConversationViewProps) {
     if (!el) return;
 
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    // If the user is within 80px of the bottom, keep auto-scrolling;
-    // otherwise, freeze the scroll position until they scroll back down.
-    setAutoScroll(distanceFromBottom < 80);
+    // If the user is within 100px of the bottom, re-enable auto-scroll
+    // This allows smooth scrolling when new messages arrive
+    if (distanceFromBottom < 100) {
+      setAutoScroll(true);
+    } else {
+      // User has scrolled up significantly, disable auto-scroll
+      setAutoScroll(false);
+    }
   };
 
   const hasTranscript = state?.transcript && state.transcript.length > 0;

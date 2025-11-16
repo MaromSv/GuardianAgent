@@ -8,10 +8,10 @@ Phone scams are no longer clumsy attempts from strangers with broken English. AI
 Last year alone, millions of people were targeted by phone scams worldwide, with billions of euros lost, and the numbers are rising fast.  
 It’s easy to think that it could never happen to you or your family, but that's exactly what everybody who got scammed thought as well.
 
-We built TiramAIsu because we wanted something real, something that actually steps in *during* the call, not after the damage is done.  
+We built Guardian Agent because we wanted something real, something that actually steps in *during* the call, not after the damage is done.  
 Not another article warning “watch out for scams” but a system that listens, understands, and acts when it matters.
 
-TiramAIsu is an all-encompassing safety layer. 
+Guardian Agent is an all-encompassing safety layer. 
 An AI guardian that silently monitors phone calls from unknown numbers, detects scam signals, and only speaks when someone you love might be in danger.  
 It can stop scams in real time, step in to question suspicious callers, automatically hang up when a scam is detected, notify family members, and even report the number to help prevent the same scam from happening to someone else in the future.
 
@@ -71,7 +71,7 @@ Create a `.env` file in the root directory, copy paste the fields from `.env.exa
 
 ## Running the System
 
-To run TiramAIsu end-to-end, you must start **three processes**:
+To run Guardian Agent end-to-end, you must start **three processes**:
 
 1. **Guardian Voice Agent** (handles live calls + scam detection)  
 2. **Backend Server (FastAPI)** (`app.py`)  

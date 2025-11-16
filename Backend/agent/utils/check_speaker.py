@@ -117,55 +117,38 @@ def _identify_speakers_with_llm(
         for i, entry in enumerate(context_window)
     )
 
-    system_prompt = """You are analyzing a phone conversation to identify who is speaking.
+    system_prompt = """You are analyzing a phone conversation with three logical roles:
 
-There are three roles:
-- "agent": AI assistant (already correctly labeled, don't change these)
-- "user": the ELDERLY person being PROTECTED (receives the call, answers the phone)
-- "pottential_scammer": the CALLER who initiated the call (may be trying to scam the user)
+- "agent": an AI assistant that may ask questions or warn about scams.
+- "user": the elderly person being protected.
+- "pottential_scammer": the other human caller, who may be trying to scam the user.
 
-CRITICAL CONTEXT:
-- This is an INCOMING call TO the elderly person
-- The elderly person ("user") ANSWERS the phone
-- The other person ("pottential_scammer") is the one who CALLED
+Important:
+- In the transcript you see, ALL human messages are currently labeled as "user".
+  Your job is to re-label each of those human messages as either:
+    - "user"               (the elderly protected person), or
+    - "pottential_scammer" (the other human).
+- Messages labeled "agent" are from the AI assistant and should NOT be changed.
 
-Your job:
-Re-label ALL messages currently marked as "user" to be EITHER:
-  - "user" (the elderly person who answered the phone)
-  - "pottential_scammer" (the person who called them)
+Clues:
+- The pottential_scammer often:
+  - leads the conversation,
+  - makes claims (e.g. from a company/bank),
+  - creates urgency,
+  - requests information, codes, or money.
+- The user (elderly person) usually:
+  - answers questions,
+  - expresses uncertainty or confusion,
+  - asks for clarification,
+  - reacts to what the other person says.
 
-How to identify who is who:
+Output:
+Return ONLY a JSON object with a single field "labels", which is an array
+of strings. Each string MUST be exactly "user" or "pottential_scammer".
 
-THE ELDERLY PERSON ("user"):
-- ANSWERS the phone first: "Hello?", "Who is this?", "Yes?"
-- Responds to what the caller says
-- Asks clarifying questions: "What do you mean?", "Are you okay?"
-- Shows concern or confusion: "That sounds terrible", "This seems suspicious"
-- Is being CALLED (didn't initiate the conversation)
-- May address the caller by name if they know them: "Oh Daniel!"
-
-THE CALLER ("pottential_scammer"):
-- CALLED the elderly person (initiated the conversation)
-- Introduces themselves: "Hi Uncle Tom, it's me Daniel"
-- Explains why they're calling: "I'm in trouble", "I need help"
-- Makes requests: "Can you help me?", "I need money", "Can you send..."
-- Creates urgency: "I need it TODAY", "I'm desperate"
-- Often references family/authority: "I'm your nephew", "The bank said..."
-
-IMPORTANT PATTERNS:
-1. First message is USUALLY the elderly person answering: "Hello?" = "user"
-2. Second message introduces themselves: "Hi, it's Daniel" = "pottential_scammer"
-3. Someone saying "Uncle Tom" or similar IS the caller (not Uncle Tom himself)
-4. Someone asking for money/help IS the caller (not the elderly person)
-5. Look at the FLOW: who initiates topics vs. who responds
-
-Output format:
-Return ONLY a JSON object with a single field "labels".
-Each label MUST be exactly "user" or "pottential_scammer".
-
-Example (for 4 messages):
+Example:
 {
-  "labels": ["user", "pottential_scammer", "user", "pottential_scammer"]
+  "labels": ["pottential_scammer", "user", "user"]
 }
 """
 
@@ -174,32 +157,16 @@ Example (for 4 messages):
         for idx in indices_to_identify
     )
 
-    user_prompt = f"""Analyze this phone conversation:
-
+    user_prompt = f"""Full conversation context:
 {conversation_text}
 
----
-Now identify the speaker for each of these entries:
+Entries needing identification:
 {entries_text}
 
----
-REMEMBER - Only two possible labels:
-- "user" = the elderly person (Uncle Tom, who answered the phone)
-- "pottential_scammer" = the caller (Daniel, who called Uncle Tom)
-
-Examples:
-- "Hello? Who is this?" → "user" (answering the phone)
-- "Hi Uncle Tom, it's Daniel" → "pottential_scammer" (caller identifying himself)
-- "Oh Daniel! What a surprise!" → "user" (Uncle Tom responding)
-- "I need money" / "Can you help me?" → "pottential_scammer" (making request)
-- "That sounds suspicious" → "user" (elderly person being cautious)
-
-Return ONLY this JSON format (each label must be "user" OR "pottential_scammer"):
-{{
-  "labels": ["user", "pottential_scammer", "user", ...]
-}}
-
-The number of labels MUST equal {len(indices_to_identify)}, in the same order as the entries above.
+Return JSON:
+{{ "labels": ["user", "pottential_scammer", ...] }}
+The number of labels MUST equal the number of entries listed above,
+and they MUST be in the same order.
 """
 
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
