@@ -8,6 +8,7 @@ if backend_dir not in sys.path:
 
 import asyncio
 import logging
+import threading
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -24,18 +25,38 @@ from livekit.agents import (
 from livekit.plugins import deepgram, openai, cartesia, silero, elevenlabs
 
 from agent.shared_state import shared_state, save_shared_state
-from agent.agent import GuardianAgent
-
 from utils.sms import send_family_alert_sms
-from shared_state import shared_state
-from agent import GuardianAgent
-from utils.report_to_authorities import report_scam_to_authorities
+from agent.agent import GuardianAgent
 
 load_dotenv()
 logger = logging.getLogger("telephony-agent")
 
+NUMBER_TO_SEND_SMS_TO = os.getenv("PROTECTED_USER_NUMBER_2")
+
 # Initialize GuardianAgent
 guardian_agent = GuardianAgent()
+
+# Track introduction state per call
+introduction_state = {"introduced": False, "count": 0}
+
+
+@function_tool
+async def have_I_introduced_myself() -> dict:
+    """Check whether the guardian has introduced itself yet.
+
+    Returns:
+        dict: {"introduced": bool} - True if already introduced, False otherwise
+    """
+    global introduction_state
+
+    result = {"introduced": introduction_state["introduced"]}
+
+    # Mark as introduced after first check
+    if not introduction_state["introduced"]:
+        introduction_state["introduced"] = True
+        introduction_state["count"] += 1
+
+    return result
 
 
 @function_tool
@@ -98,8 +119,13 @@ async def guardian_pipeline_timer(ctx: JobContext):
             shared_state["analysis"] = analysis
             shared_state["decision"] = decision
             shared_state["risk_score"] = float(decision.get("risk_score", 0.0))
-            # This transcript has already gone through n_identify_speakers
-            shared_state["transcript"] = processed_transcript
+
+            # Update the transcript with properly identified speakers
+            if processed_transcript:
+                shared_state["transcript"] = processed_transcript
+                logger.info(
+                    f"📝 Updated transcript with speaker identification: {len(processed_transcript)} items"
+                )
 
             # Persist to disk so Flask can serve it
             save_shared_state()
@@ -113,19 +139,13 @@ async def guardian_pipeline_timer(ctx: JobContext):
 
     except asyncio.CancelledError:
         logger.info("⏹️  Guardian pipeline timer stopped")
-        raise  # Re-raise to properly handle cancellation
+        raise
     except Exception as e:
         logger.error(f"❌ Error in guardian pipeline: {e}", exc_info=True)
 
 
 async def on_call_hangup(ctx: JobContext, pipeline_task: asyncio.Task):
-    """
-    Handle cleanup and final processing when a call is disconnected.
-
-    Args:
-        ctx: JobContext containing room and call information
-        pipeline_task: The background guardian pipeline task to cancel
-    """
+    """Handle cleanup when call disconnects."""
     call_sid = ctx.room.name
     logger.info(f"📴 Call disconnected: {call_sid}")
 
@@ -138,10 +158,10 @@ async def on_call_hangup(ctx: JobContext, pipeline_task: asyncio.Task):
             except asyncio.CancelledError:
                 logger.info("✅ Guardian pipeline timer cancelled successfully")
 
-        # If the call was determined to be a scam, send SMS alert to family member, and report to authorities
+        # If scam detected, send SMS alert and report to authorities
         decision = shared_state.get("decision", {})
         if decision.get("action") == "warn":
-            family_number = "+31615869452"
+            family_number = NUMBER_TO_SEND_SMS_TO
             scam_details = shared_state.get("analysis", {}).get("reason", "")
             risk = decision.get("risk_score", 0)
 
@@ -153,153 +173,303 @@ async def on_call_hangup(ctx: JobContext, pipeline_task: asyncio.Task):
                 risk_score=risk,
             )
 
-            # Report to authorities (MUST await since it's async)
-            logger.info("🚨 Reporting scam to authorities...")
-            from agent.utils.report_to_authorities import report_scam_to_authorities
+            # Report to authorities in a separate thread (so LiveKit worker can shut down)
+            logger.info("🚨 Starting authority reporting thread...")
             
-            report_result = await report_scam_to_authorities(
-                caller_number=shared_state["caller_number"],
-                user_number=shared_state["user_number"],
-                transcript=shared_state.get("transcript", []),
-            )
+            def _report_in_thread():
+                """Run browser-use reporting in a separate thread with its own event loop."""
+                try:
+                    import time
+                    from agent.utils.report_to_authorities import report_scam_to_authorities
+                    
+                    # Give transcript/speaker ID a moment to settle
+                    time.sleep(5)
+                    
+                    # Clean phone numbers
+                    def clean_phone(phone_str: str) -> str:
+                        if not phone_str:
+                            return "0000000000"
+                        cleaned = (
+                            phone_str.replace("sip_", "")
+                            .replace("sip:", "")
+                            .replace("+", "")
+                            .replace("-", "")
+                            .replace(" ", "")
+                        )
+                        digits = "".join(c for c in cleaned if c.isdigit())
+                        if len(digits) >= 10:
+                            return digits[-10:]
+                        return digits or "0000000000"
+                    
+                    caller_clean = clean_phone(shared_state.get("caller_number", ""))
+                    user_clean = clean_phone(shared_state.get("user_number", ""))
+                    transcript = shared_state.get("transcript", [])
+                    
+                    logger.info(
+                        f"📋 Reporting (thread): caller={caller_clean}, user={user_clean}, "
+                        f"transcript_items={len(transcript)}"
+                    )
+                    
+                    # Create a new event loop for this thread
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    report_result = loop.run_until_complete(
+                        report_scam_to_authorities(
+                            caller_number='8656304266',
+                            user_number='4697097630',
+                            transcript=transcript,
+                        )
+                    )
+                    loop.close()
+                    
+                    logger.info(
+                        f"📋 Authority report completed: {report_result.get('status')}"
+                    )
+                    shared_state["authority_report"] = report_result
+                    save_shared_state()
+                    
+                except Exception as e:
+                    logger.error(f"❌ Authority reporting thread failed: {e}", exc_info=True)
+                    shared_state["authority_report"] = {
+                        "status": "failed",
+                        "error": str(e),
+                    }
+                    save_shared_state()
             
-            logger.info(f"📋 Authority report result: {report_result.get('status')}")
-            shared_state["authority_report"] = report_result
-            save_shared_state()
+            # Start reporting in a daemon thread (won't block process shutdown)
+            reporting_thread = threading.Thread(target=_report_in_thread, daemon=True)
+            reporting_thread.start()
+            logger.info("🚀 Authority reporting thread started (running in background)")
 
         logger.info(f"🏁 Hangup processing complete for call: {call_sid}")
 
     except Exception as e:
         logger.error(f"❌ Error during hangup processing: {e}", exc_info=True)
 
+
 async def entrypoint(ctx: JobContext):
     """Main entry point for the telephony voice agent."""
+    global introduction_state
+
+    # Reset introduction state for new call
+    introduction_state = {"introduced": False, "count": 0}
+
     await ctx.connect()
 
-    # Wait for participant (caller) to join
-    participant = await ctx.wait_for_participant()
-    logger.info(f"📞 Phone call connected from: {participant.identity}")
+    # Wait for participants
+    logger.info("⏳ Waiting for participants to join...")
+    participants = []
 
-    # Initialize shared_state containers for this call
+    first_participant = await ctx.wait_for_participant()
+    participants.append(first_participant)
+    logger.info(f"📞 First participant joined: {first_participant.identity}")
+
+    try:
+        second_participant = await asyncio.wait_for(
+            ctx.wait_for_participant(), timeout=5.0
+        )
+        participants.append(second_participant)
+        logger.info(f"📞 Second participant joined: {second_participant.identity}")
+    except asyncio.TimeoutError:
+        logger.warning(
+            "⚠️  No second participant within 5s, continuing with single participant"
+        )
+        second_participant = None
+
+    # Initialize shared_state
     shared_state["raw_transcript"] = []
-    shared_state["transcript"] = []  # will be filled by GuardianAgent after speaker ID
-
-    # Set call metadata
-    shared_state["caller_number"] = participant.identity
-    shared_state["user_number"] = ctx.room.name
+    shared_state["transcript"] = []
+    shared_state["caller_number"] = first_participant.identity
+    shared_state["user_number"] = (
+        second_participant.identity if second_participant else ctx.room.name
+    )
     shared_state["call_sid"] = ctx.room.name
 
-    # Persist initial state so Flask can see the active call
     save_shared_state()
 
     logger.info(f"🔧 Initialized shared_state for call: {ctx.room.name}")
+    logger.info(f"   Caller: {shared_state['caller_number']}")
+    logger.info(f"   Protected user: {shared_state['user_number']}")
 
-    # Start the guardian pipeline timer in background
+    # Start background tasks
     pipeline_task = asyncio.create_task(guardian_pipeline_timer(ctx))
+    processed_transcripts = set()
+
+    # Helper for async speaker identification
+    async def _identify_speaker_async():
+        try:
+            from agent.utils.check_speaker import identify_speakers
+
+            identified_transcript = await asyncio.get_event_loop().run_in_executor(
+                None,
+                identify_speakers,
+                shared_state["transcript"],
+                shared_state.get("user_number"),
+                shared_state.get("caller_number"),
+            )
+            shared_state["transcript"] = identified_transcript
+            save_shared_state()
+            logger.debug("✅ Speaker labels refined")
+        except Exception as e:
+            logger.debug(f"Speaker ID skipped: {e}")
+
+    def _add_transcript(speaker: str, text: str, interrupted: bool = False):
+        """Add transcript entry immediately."""
+        chunk = {
+            "speaker": speaker,
+            "text": text,
+            "interrupted": interrupted,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+        }
+        shared_state.setdefault("raw_transcript", []).append(chunk)
+        shared_state.setdefault("transcript", []).append(chunk)
+        save_shared_state()
+        logger.info(f"💾 [{speaker.upper()}] {text[:60]}...")
+
+        # Trigger speaker identification for human messages
+        # (will use LLM to distinguish "user" vs "pottential_scammer")
+        if speaker == "user":
+            asyncio.create_task(_identify_speaker_async())
 
     agent = Agent(
-        instructions="""You are a vigilant Guardian AI assistant dedicated to protecting users from scam calls.
+        instructions="""
+You are a Guardian AI assistant that protects an elderly user from scam calls.
+You never decide to speak on your own. Instead, you MUST:
+Call the tool get_current_state() exactly once at the beginning of each reply.
+Read the returned JSON fields.
+Follow the rules below.
+The tool returns a JSON object like:
+{
+"action": "observe" | "question" | "warn",
+"reason": "...",
+"risk_score": 0-100
+}
+ROLES:
+"user" = the elderly person being protected.
+"pottential_scammer" = the other human caller who may be a scammer.
+NAME HANDLING (IMPORTANT):
+Before speaking, use the tool have_I_introduced_myself() to check if you have already
+introduced yourself. The tool returns {"introduced": true} or {"introduced": false}.
+If {"introduced": false}, introduce yourself ONCE with:
+"Hello, this is Guardian Agent. I'm here to help ensure your safety during this call."
+Then proceed with your question or warning.
+If {"introduced": true}, skip the introduction and go straight to your message.
 
-CRITICAL RULES:
-1. ALWAYS call get_current_state() BEFORE responding.
-2. Read the "action" field from get_current_state():
-   - "observe" = DO NOT SPEAK, return an empty string as your reply.
-   - "question" = Ask the potential scammer a direct question to verify their legitimacy.
-   - "warn" = Strongly warn the user this appears to be a scam and tell them to hang up.
-3. Use "risk_score" and "reason" from get_current_state() to shape how strong your warning is.
-4. NEVER speak if action == "observe". Your reply must be completely empty in that case.
-
-When you do speak (question/warn):
-- Be direct, clear, and authoritative
-- Keep it short (1–2 sentences)
-- Prioritize user safety above all
-
-Example question (action="question"):
-"QUESTION: To verify your identity, can you please provide the official account number associated with your Microsoft support case?"
-
-Example warning (action="warn"):
-"WARNING: This appears to be a scam call. The caller is using common fraud tactics. I recommend hanging up immediately."
-
-Remember: Only speak when the analysis tells you to, and say NOTHING at all when action is "observe".""",
-        tools=[get_current_state],
+Before speaking, look at the CONVERSATION HISTORY to see if the caller
+has introduced themselves with a name. Examples:
+"Hi, this is John from Microsoft support."
+"Hello, my name is Sarah, I'm calling from your bank."
+If you can confidently infer a first name (e.g. "John", "Sarah"), address
+the caller by that name: "John", "Mr. John", or "Ms. Sarah".
+If you cannot confidently infer a name, simply address them as "caller".
+CRITICAL SAFETY RULES (NON-NEGOTIABLE):
+NEVER ask for or repeat sensitive personal information, including:
+Social Security numbers (full or last 4 digits)
+Bank account or routing numbers
+Credit/debit card numbers, CVV, expiration dates
+Online banking usernames or passwords
+One-time codes (2FA, SMS, email, app codes)
+ID document numbers (passport, driver's license, etc.)
+NEVER tell the user to move money, buy gift cards, send crypto,
+or install remote access software.
+Your questions should challenge the CALLER'S legitimacy, NOT verify the user's identity.
+GOOD QUESTION EXAMPLES (for the caller, when action = "question"):
+If you know the name, e.g. John:
+"John, what is the official support ticket number for this case?"
+If no name:
+"Caller, what publicly listed phone number can the user call back to reach your department?"
+Other examples:
+"Which company do you represent, and what is its official website?"
+"What reference number can the user confirm by logging into the official app (without sharing any codes)?"
+FORBIDDEN QUESTIONS (NEVER ask these):
+"What are the last 4 digits of your Social Security number?"
+"Can you read me your card number so I can verify?"
+"Please tell me the code you just received by text."
+ACTION RULES:
+If action == "observe":
+You MUST return an empty string as your reply.
+Do NOT speak. Do NOT ask questions. Do NOT warn.
+If action == "question":
+This is a one-shot opportunity: ask ONE short, clear verification question.
+First, decide how to address the caller:
+If you inferred a name (e.g. "John"), address them by that name.
+Otherwise, address them as "caller".
+Keep the entire reply within 1–2 sentences total.
+Do not ask the user for any sensitive information.
+STYLE:
+Be concise and direct.
+Prioritize user safety over politeness if necessary.
+NEVER speak when the tool action is "observe".
+""",
+        tools=[get_current_state, have_I_introduced_myself],
     )
 
     session = AgentSession(
         allow_interruptions=False,
         vad=silero.VAD.load(),
-        stt=deepgram.STT(
-            model="nova-3",
-            language="en-US",
-            interim_results=True,
-            punctuate=True,
-            smart_format=True,
-            filler_words=True,
-            endpointing_ms=25,
-            sample_rate=16000,
-        ),
-        llm=openai.LLM(
-            model="gpt-4o-mini",
-            temperature=0.7,
-            tool_choice="required",
-        ),
-        # tts=cartesia.TTS(
-        #     model="sonic-2",
-        #     voice="a0e99841-438c-4a64-b679-ae501e7d6091",
-        #     language="en",
-        #     speed=1.0,
-        #     sample_rate=24000,
-        # ),
+        stt=deepgram.STT(model="nova-3", language="en"),
+        llm=openai.LLM(model="gpt-4o-mini"),
         tts=elevenlabs.TTS(
             voice_id="ODq5zmih8GrVes37Dizd", model="eleven_multilingual_v2"
         ),
     )
 
-    # ---- REALTIME USER STT (for logs / optional live transcript) ----
+    # ===== CAPTURE ALL USER SPEECH (REAL-TIME) =====
     @session.on("user_input_transcribed")
     def _on_user_input(ev: UserInputTranscribedEvent):
-        # Only log final transcripts to reduce noise
-        if ev.is_final:
-            logger.info(f"[USER] {ev.transcript}")
+        if not ev.is_final or not ev.transcript.strip():
+            return
 
-            chunk = {
-                "role": "user",
-                "text": ev.transcript,
-                "interrupted": False,
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-            }
-            # Raw transcript is kept separate; UI will only see processed transcript
-            shared_state.setdefault("raw_transcript", []).append(chunk)
+        text = ev.transcript.strip()
+        transcript_id = f"{text}_{datetime.utcnow().timestamp()}"
 
-    # ---- FINAL MESSAGES FOR BOTH USER + ASSISTANT ----
+        if transcript_id in processed_transcripts:
+            return
+
+        processed_transcripts.add(transcript_id)
+        logger.info(f"🎤 [SPEECH] {text}")
+        # Use "role" instead of "speaker" - let check_speaker.py identify the actual speaker
+        _add_transcript(speaker="user", text=text, interrupted=False)
+
+    # ===== CAPTURE AGENT RESPONSES & BACKUP USER MESSAGES =====
     @session.on("conversation_item_added")
     def _on_conversation_item(ev: ConversationItemAddedEvent):
         role = ev.item.role
         text = ev.item.text_content or ""
         interrupted = ev.item.interrupted
 
-        logger.info(f"[{role.upper()}] {text}")
+        if not text.strip():
+            return
 
-        chunk = {
-            "role": role,
-            "text": text,
-            "interrupted": interrupted,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-        }
-        # Raw transcript is kept separate; UI will only see processed transcript
-        shared_state.setdefault("raw_transcript", []).append(chunk)
+        # Always add agent responses
+        if role == "assistant":
+            logger.info(f"🤖 [AGENT] {text}")
+            _add_transcript(speaker="agent", text=text, interrupted=interrupted)
+            return
+
+        # For user messages, check if already captured
+        recent_texts = [
+            t.get("text", "")
+            for t in shared_state.get("transcript", [])[-5:]
+            if t.get("speaker") in ["caller", "user", "pottential_scammer"]
+        ]
+
+        if text not in recent_texts:
+            logger.info(f"👤 [USER-CONV] {text}")
+            # Use "user" role - let check_speaker.py identify if it's caller or protected user
+            _add_transcript(speaker="user", text=text, interrupted=interrupted)
 
     @ctx.room.on("participant_disconnected")
     def _on_participant_disconnected(disconnected_participant):
-        logger.info(
-            f"👋 participant_disconnected event: {disconnected_participant.identity}"
-        )
+        logger.info(f"👋 Participant disconnected: {disconnected_participant.identity}")
 
-        if disconnected_participant.identity == participant.identity:
-            logger.info("📵 Caller hung up, running hangup logic...")
+        if disconnected_participant.identity in [p.identity for p in participants]:
+            logger.info("📵 Running hangup logic...")
             asyncio.create_task(on_call_hangup(ctx, pipeline_task))
-            ctx.shutdown(reason="caller_hangup")
+            ctx.shutdown(reason="participant_hangup")
 
-    # Start the agent session
+    # Start session
     await session.start(agent=agent, room=ctx.room)
 
 
