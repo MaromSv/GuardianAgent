@@ -83,7 +83,7 @@ Run each of the following **in a separate terminal** from the root directory.
 ```bash
 #Backend
 python Backend/app.py
-python Backend/telephony_agent.py
+python Backend/telephony_agent.py start 
 
 #Frontend
 cd Frontend
